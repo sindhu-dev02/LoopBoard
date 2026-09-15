@@ -10,15 +10,8 @@ import {
   ProjectStatus,
   TeamMember
 } from "@/types";
-
-export const DEV_CONFIG: { simulateError: boolean; delayMs: number | null } = {
-  simulateError: false,
-  delayMs: null,
-};
-
-export function setDevConfig(config: Partial<typeof DEV_CONFIG>) {
-  Object.assign(DEV_CONFIG, config);
-}
+import { DEV_CONFIG, setDevConfig } from "@/lib/devConfig";
+export { DEV_CONFIG, setDevConfig };
 
 export const CURRENT_USER: User = {
   id: "u1",

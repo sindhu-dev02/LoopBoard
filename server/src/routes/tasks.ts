@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getAllTasks, getTaskById, createTask, updateTask, deleteTask, logActivity } from "../data/store";
+import { getAllTasks, getTaskById, createTask, updateTask, deleteTask, logActivity, taskTitleExistsInProject } from "../data/store";
 import { createTaskSchema, updateTaskSchema } from "../schemas/task";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { NotFoundError, ValidationError } from "../errors/AppError";
@@ -19,6 +19,11 @@ router.get("/:id", asyncHandler(async (req, res) => {
 router.post("/", asyncHandler(async (req, res) => {
     const result = createTaskSchema.safeParse(req.body);
     if (!result.success) throw new ValidationError("Invalid task data", result.error.issues);
+
+    const isDuplicate = await taskTitleExistsInProject(result.data.projectId, result.data.title);
+    if (isDuplicate) {
+        throw new ValidationError(`A task named "${result.data.title}" already exists in this project`);
+    }
 
     const newTask = await createTask(result.data);
 

@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { getProjectById } from "../data/store";
-import { generateTasksSchema } from "../schemas/ai";
+import { getProjectById, getTasksByProject } from "../data/store";
+import { generateTasksSchema, summarizeProjectSchema } from "../schemas/ai";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { NotFoundError, ValidationError } from "../errors/AppError";
 import { genAI } from "../lib/gemini";
@@ -31,51 +31,45 @@ function toDateOnly(daysFromNow: number): string {
 const router = Router();
 
 router.post(
-  "/tasks/generate",
+  "/projects/summarize",
   asyncHandler(async (req, res) => {
-    const result = generateTasksSchema.safeParse(req.body);
+    const result = summarizeProjectSchema.safeParse(req.body);
     if (!result.success)
       throw new ValidationError("Invalid request", result.error.issues);
 
     const project = await getProjectById(result.data.projectId);
     if (!project) throw new NotFoundError("Project not found");
 
-    const count = result.data.count ?? 5;
+    const tasks = await getTasksByProject(project.id);
 
-    const model = genAI.getGenerativeModel({
-      model: "gemini-3.6-flash",
-      generationConfig: { responseMimeType: "application/json" },
-    });
+    const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash" });
+
+    const taskLines = tasks.length
+      ? tasks
+          .map(
+            (t) =>
+              `- "${t.title}" — status: ${t.status}, priority: ${t.priority}, due: ${t.dueDate}` +
+              (t.assignee ? `, assignee: ${t.assignee}` : "")
+          )
+          .join("\n")
+      : "No tasks have been created for this project yet.";
 
     const prompt =
-      "You are a project planning assistant. Given a project's name and description, " +
-      "propose a concise, realistic list of engineering/product tasks needed to move it forward. " +
-      'Respond with ONLY a JSON array. Each item must be: ' +
-      '{"title": string, "priority": "low" | "medium" | "high", "dueInDays": integer between 1 and 30}.\n\n' +
-      `Project: ${project.name}\nDescription: ${project.description}\n\nGenerate exactly ${count} tasks.`;
+      "You are a project status assistant writing a short digest for a busy team lead. " +
+      "Given a project's details and its current tasks, write a concise status summary in 3-5 sentences. " +
+      "Cover: overall progress, anything overdue or at risk, and what should happen next. " +
+      "Plain prose only, no markdown or bullet points.\n\n" +
+      `Project: ${project.name}\n` +
+      `Description: ${project.description}\n` +
+      `Status: ${project.status}\n` +
+      `Progress: ${project.completedTaskCount}/${project.taskCount} tasks complete (${project.progress}%)\n` +
+      `Due date: ${project.dueDate}\n\n` +
+      `Tasks:\n${taskLines}`;
 
     const response = await model.generateContent(prompt);
-    const text = response.response.text();
+    const summary = response.response.text().trim();
 
-    const cleaned = text.replace(/```json|```/g, "").trim();
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch {
-      throw new Error("Failed to parse AI response as JSON");
-    }
-
-    if (!Array.isArray(parsed) || !parsed.every(isSuggestedTask)) {
-      throw new Error("AI response did not match the expected task format");
-    }
-
-    const suggestions = parsed.map((task) => ({
-      title: task.title,
-      priority: task.priority,
-      dueDate: toDateOnly(task.dueInDays),
-    }));
-
-    res.json(suggestions);
+    res.json({ summary });
   })
 );
 

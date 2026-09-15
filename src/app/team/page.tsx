@@ -28,6 +28,7 @@ function TeamMemberCard({ member }: { member: TeamMember }) {
       <div>
         <p className="text-sm font-medium text-ink">{member.name}</p>
         <p className="text-xs text-ink-muted">{member.role}</p>
+        <p className="text-xs text-ink-muted font-mono">ID: {member.id}</p>
       </div>
     </Card>
   );

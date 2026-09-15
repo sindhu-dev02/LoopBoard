@@ -2,20 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
-import {
-  fetchNotificationPreferences,
-  updateNotificationPreferences,
-  updateCurrentUser,
-  updatePassword,
-  setDevConfig,
-  CURRENT_USER,
-  NotificationPreferences,
-} from "@/lib/mock-data";
+import { fetchNotificationPreferences, updateNotificationPreferences } from "@/lib/api/notifications";
+import { NotificationPreferences } from "@/types";
 import { Card } from "@/components/ui/Card";
 import { Avatar } from "@/components/ui/Avatar";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
 import { User, Palette, Bell, Terminal, Check, Sun, Moon, Monitor, KeyRound } from "lucide-react";
+import { useAuth } from "@/lib/auth/AuthContext";
+import { updateProfile, changePassword } from "@/lib/api/users";
+import { setDevConfig } from "@/lib/devConfig";
 
 function SavedBadge({ show }: { show: boolean }) {
   if (!show) return null;
@@ -28,19 +24,27 @@ function SavedBadge({ show }: { show: boolean }) {
 }
 
 function ProfileSection() {
-  const [name, setName] = useState(CURRENT_USER.name);
-  const [role, setRole] = useState(CURRENT_USER.role);
-  const [email, setEmail] = useState(CURRENT_USER.email);
+  const { user, updateUser } = useAuth();
+  const [name, setName] = useState(user?.name ?? "");
+  const [role, setRole] = useState(user?.role ?? "");
+  const [email, setEmail] = useState(user?.email ?? "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!user) return null;
 
   async function handleSave() {
     setSaving(true);
     setSaved(false);
+    setError(null);
     try {
-      await updateCurrentUser({ name, role, email });
+      const updated = await updateProfile(user!.id, { name, role, email });
+      updateUser(updated);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save profile");
     } finally {
       setSaving(false);
     }
@@ -84,7 +88,7 @@ function ProfileSection() {
           <div>
             <label className="text-xs font-medium text-ink-muted block mb-1">User ID</label>
             <input
-              value={CURRENT_USER.id}
+              value={user.id}
               readOnly
               disabled
               className="w-full rounded-md border border-surface-border bg-surface-border/30 px-3 py-2 text-sm text-ink-muted cursor-not-allowed"
@@ -94,6 +98,7 @@ function ProfileSection() {
       </div>
 
       <div className="flex items-center justify-end gap-3">
+        {error && <span className="text-xs text-status-danger mr-auto">{error}</span>}
         <SavedBadge show={saved} />
         <button
           type="button"
@@ -119,34 +124,34 @@ function ChangePasswordSection() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setSaved(false);
+    async function handleSubmit(e: React.FormEvent) {
+      e.preventDefault();
+      setError(null);
+      setSaved(false);
 
-    if (newPassword.length < 6) {
-      setError("New password must be at least 6 characters.");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setError("New password and confirmation don't match.");
-      return;
-    }
+      if (newPassword.length < 6) {
+        setError("New password must be at least 6 characters.");
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        setError("New password and confirmation don't match.");
+        return;
+      }
 
-    setSaving(true);
-    try {
-      await updatePassword(currentPassword, newPassword);
-      setSaved(true);
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-      setTimeout(() => setSaved(false), 2000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update password");
-    } finally {
-      setSaving(false);
+      setSaving(true);
+      try {
+        await changePassword(currentPassword, newPassword);
+        setSaved(true);
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+        setTimeout(() => setSaved(false), 2000);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to update password");
+      } finally {
+        setSaving(false);
+      }
     }
-  }
 
   return (
     <Card className="flex flex-col gap-4">
@@ -155,7 +160,7 @@ function ChangePasswordSection() {
         <h2 className="text-sm font-semibold text-ink">Change Password</h2>
       </div>
       <p className="text-xs text-ink-muted -mt-2">
-        This is a demo — password changes are simulated and not persisted to a real account.
+        Changes your real account password. You'll need your current password to confirm.
       </p>
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-3 gap-3">

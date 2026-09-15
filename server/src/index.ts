@@ -13,6 +13,7 @@ import { errorHandler } from "./middleware/errorHandler";
 import { requireAuth } from "./middleware/requireAuth";
 import { prisma } from "./lib/prisma";
 import aiRouter from "./routes/ai";
+import notificationsRouter from "./routes/notifications";
 
 dotenv.config();
 
@@ -31,6 +32,7 @@ app.use("/api/users", requireAuth, usersRouter);
 app.use("/api/activity", requireAuth, activityRouter);
 app.use("/api/dashboard", requireAuth, dashboardRouter);
 app.use("/api/ai", requireAuth, aiRouter);
+app.use("/api/notifications", requireAuth, notificationsRouter);
 app.use(errorHandler);
 
 const server = app.listen(port, () => {

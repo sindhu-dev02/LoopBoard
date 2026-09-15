@@ -9,6 +9,7 @@ import {
   ActivityEvent
 } from "@shared/types";
 import { NotFoundError } from "../errors/AppError";
+import crypto from "crypto";
 
 // -----------------------------------------------------------------------
 // Shared helpers
@@ -72,12 +73,35 @@ export async function getAllTasks() {
   return tasks.map(serializeTask);
 }
 
+export async function getTasksByProject(projectId: string) {
+  const tasks = await prisma.task.findMany({
+    where: { projectId },
+    include: { assignee: true },
+    orderBy: { createdAt: "asc" },
+  });
+  return tasks.map(serializeTask);
+}
+
 export async function getTaskById(id: string) {
   const task = await prisma.task.findUnique({
     where: { id },
     include: { assignee: true },
   });
   return task ? serializeTask(task) : null;
+}
+
+export async function taskTitleExistsInProject(
+  projectId: string,
+  title: string
+): Promise<boolean> {
+  const existing = await prisma.task.findFirst({
+    where: {
+      projectId,
+      title: { equals: title, mode: "insensitive" },
+    },
+    select: { id: true },
+  });
+  return existing !== null;
 }
 
 export async function createTask(data: Omit<Task, "id" | "assignee">) {
@@ -362,6 +386,7 @@ function serializeUser(user: {
   role: string;
   email: string;
   password: string;
+  provider: string;
   avatarInitials: string | null;
 }): User {
   return {
@@ -370,6 +395,7 @@ function serializeUser(user: {
     role: user.role,
     email: user.email,
     password: user.password,
+    provider: user.provider,
     avatarInitials: user.avatarInitials ?? undefined,
   };
 }
@@ -397,6 +423,27 @@ export async function createUser(data: Omit<User, "id">) {
   } catch (err) {
     translatePrismaError(err);
   }
+}
+
+export async function findOrCreateGoogleUser(profile: { email: string; name: string }) {
+  const existing = await prisma.user.findUnique({ where: { email: profile.email } });
+  if (existing) return serializeUser(existing);
+
+  // Google users don't set a password — generate one they'll never see or use,
+  // so the account still satisfies the schema but can't be logged into via the password form.
+  const randomPassword = crypto.randomBytes(32).toString("hex");
+  const hashedPassword = await bcrypt.hash(randomPassword, 10);
+
+  const user = await prisma.user.create({
+    data: {
+      name: profile.name,
+      email: profile.email,
+      password: hashedPassword,
+      provider: "google",
+      role: "Member",
+    },
+  });
+  return serializeUser(user);
 }
 
 export async function updateUser(id: string, updates: Partial<User>) {
@@ -498,4 +545,62 @@ export async function getDashboardStats() {
     ]);
 
   return { activeProjects, tasksCompletedThisWeek, tasksOverdue, teamMembers };
+}
+
+// -----------------------------------------------------------------------
+// Notification Preferences
+// -----------------------------------------------------------------------
+
+export async function getNotificationPreferences(userId: string) {
+  const existing = await prisma.notificationPreference.findUnique({ where: { userId } });
+  if (existing) return existing;
+  return prisma.notificationPreference.create({ data: { userId } });
+}
+
+export async function updateNotificationPreferences(
+  userId: string,
+  patch: Partial<{
+    taskAssigned: boolean;
+    taskOverdue: boolean;
+    comments: boolean;
+    weeklySummary: boolean;
+  }>
+) {
+  return prisma.notificationPreference.upsert({
+    where: { userId },
+    create: { userId, ...patch },
+    update: patch,
+  });
+}
+
+// -----------------------------------------------------------------------
+// forgot-password / email reset
+// -----------------------------------------------------------------------
+
+export async function createPasswordResetToken(userId: string): Promise<string> {
+  const rawToken = crypto.randomBytes(32).toString("hex");
+  const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+  await prisma.passwordResetToken.create({
+    data: { userId, tokenHash, expiresAt },
+  });
+
+  return rawToken;
+}
+
+export async function consumePasswordResetToken(rawToken: string): Promise<string | null> {
+  const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+
+  const record = await prisma.passwordResetToken.findUnique({ where: { tokenHash } });
+  if (!record || record.usedAt || record.expiresAt < new Date()) {
+    return null;
+  }
+
+  await prisma.passwordResetToken.update({
+    where: { id: record.id },
+    data: { usedAt: new Date() },
+  });
+
+  return record.userId;
 }

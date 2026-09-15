@@ -9,6 +9,7 @@ export interface User {
   role: string;
   email: string;
   password?: string; // mock-only, never do this in a real app
+  provider?: string;
   avatarInitials?: string;
 }
 
@@ -67,6 +68,13 @@ export interface NotificationItem {
   description: string;
   read: boolean;
   timestamp: string;
+}
+
+export interface NotificationPreferences {
+  taskAssigned: boolean;
+  taskOverdue: boolean;
+  comments: boolean;
+  weeklySummary: boolean;
 }
 
 export interface TeamMember {

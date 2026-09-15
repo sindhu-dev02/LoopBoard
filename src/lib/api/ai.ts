@@ -13,3 +13,8 @@ export async function generateTaskSuggestions(
 ): Promise<AITaskSuggestion[]> {
   return api.post<AITaskSuggestion[]>("/api/ai/tasks/generate", { projectId, count });
 }
+
+export async function summarizeProject(projectId: string): Promise<string> {
+  const { summary } = await api.post<{ summary: string }>("/api/ai/projects/summarize", { projectId });
+  return summary;
+}

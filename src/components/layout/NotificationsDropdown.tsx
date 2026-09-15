@@ -2,9 +2,25 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Bell } from "lucide-react";
-import { NotificationItem } from "@/types";
-import { fetchNotifications, markNotificationRead } from "@/lib/mock-data";
+import { ActivityEvent, ActivityAction } from "@/types";
+import { fetchActivity } from "@/lib/api/dashboard";
 import { cn } from "@/lib/utils";
+
+const LAST_SEEN_KEY = "loopboard:notifications:lastSeenAt";
+
+const ACTION_VERBS: Record<ActivityAction, string> = {
+  created: "created",
+  "status-changed": "updated the status of",
+  completed: "completed",
+  commented: "commented on",
+};
+
+function describeActivity(event: ActivityEvent) {
+  return {
+    title: `${event.actor} ${ACTION_VERBS[event.action]} "${event.target}"`,
+    description: event.detail ?? "",
+  };
+}
 
 function formatRelativeTime(iso: string) {
   const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -16,14 +32,18 @@ function formatRelativeTime(iso: string) {
 
 export function NotificationsDropdown() {
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<NotificationItem[] | null>(null);
+  const [items, setItems] = useState<ActivityEvent[] | null>(null);
+  const lastSeenRef = useRef(0);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (open && items === null) {
-      fetchNotifications().then(setItems);
-    }
-  }, [open, items]);
+    lastSeenRef.current = Number(localStorage.getItem(LAST_SEEN_KEY) ?? 0);
+    fetchActivity().then(setItems).catch(() => setItems([]));
+  }, []);
+
+  useEffect(() => {
+    if (open) localStorage.setItem(LAST_SEEN_KEY, String(Date.now()));
+  }, [open]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -40,12 +60,8 @@ export function NotificationsDropdown() {
     };
   }, []);
 
-  const unreadCount = items?.filter((n) => !n.read).length ?? 0;
-
-  async function handleMarkRead(id: string) {
-    setItems((prev) => prev?.map((n) => (n.id === id ? { ...n, read: true } : n)) ?? null);
-    markNotificationRead(id).catch(() => {});
-  }
+  const unreadCount =
+    items?.filter((e) => new Date(e.timestamp).getTime() > lastSeenRef.current).length ?? 0;
 
   return (
     <div className="relative" ref={ref}>
@@ -70,30 +86,38 @@ export function NotificationsDropdown() {
           {items === null ? (
             <div className="p-4 text-sm text-ink-muted">Loading...</div>
           ) : items.length === 0 ? (
-            <div className="p-4 text-sm text-ink-muted">No notifications</div>
+            <div className="p-4 text-sm text-ink-muted">No recent activity</div>
           ) : (
             <ul>
-              {items.map((n) => (
-                <li key={n.id}>
-                  <button
-                    type="button"
-                    onClick={() => handleMarkRead(n.id)}
-                    className={cn(
-                      "w-full text-left px-4 py-3 border-b border-surface-border last:border-0 hover:bg-surface transition-colors cursor-pointer",
-                      !n.read && "bg-accent/5"
-                    )}
-                  >
-                    <div className="flex items-start gap-2">
-                      {!n.read && <span className="w-1.5 h-1.5 mt-1.5 rounded-full bg-accent shrink-0" />}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-ink font-medium">{n.title}</p>
-                        <p className="text-xs text-ink-muted mt-0.5">{n.description}</p>
-                        <p className="text-xs text-ink-faint mt-1">{formatRelativeTime(n.timestamp)}</p>
+              {items.map((event) => {
+                const { title, description } = describeActivity(event);
+                const unread = new Date(event.timestamp).getTime() > lastSeenRef.current;
+                return (
+                  <li key={event.id}>
+                    <div
+                      className={cn(
+                        "px-4 py-3 border-b border-surface-border last:border-0",
+                        unread && "bg-accent/5"
+                      )}
+                    >
+                      <div className="flex items-start gap-2">
+                        {unread && (
+                          <span className="w-1.5 h-1.5 mt-1.5 rounded-full bg-accent shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-ink font-medium">{title}</p>
+                          {description && (
+                            <p className="text-xs text-ink-muted mt-0.5">{description}</p>
+                          )}
+                          <p className="text-xs text-ink-faint mt-1">
+                            {formatRelativeTime(event.timestamp)}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </button>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

@@ -19,7 +19,7 @@ import { TaskCardSkeleton } from "@/components/dashboard/TaskCardSkeleton";
 import { TaskFormModal, TaskFormValues } from "@/components/dashboard/TaskFormModal";
 import { ArrowLeft, CalendarDays, ListChecks, FolderX, Plus, Sparkles } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { generateTaskSuggestions, AITaskSuggestion } from "@/lib/api/ai";
+import { generateTaskSuggestions, summarizeProject, AITaskSuggestion } from "@/lib/api/ai";
 import { AITaskSuggestionsModal } from "@/components/dashboard/AITaskSuggestionsModal";
 
 const STATUS_CONFIG: Record<Project["status"], { label: string; badge: "success" | "warning" | "danger" | "info"; bar: "success" | "warning" | "danger" | "info" }> = {
@@ -49,6 +49,9 @@ export default function ProjectDetailPage() {
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<AITaskSuggestion[]>([]);
   const [aiSubmitting, setAiSubmitting] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchProjectById(params.id).then(setProject);
@@ -105,6 +108,20 @@ export default function ProjectDetailPage() {
       setAiError(err instanceof Error ? err.message : "Failed to generate suggestions");
     } finally {
       setAiLoading(false);
+    }
+  }
+
+  async function handleSummarize() {
+    if (!project) return;
+    setSummaryLoading(true);
+    setSummaryError(null);
+    try {
+      const result = await summarizeProject(project.id);
+      setSummary(result);
+    } catch (err) {
+      setSummaryError(err instanceof Error ? err.message : "Failed to generate summary");
+    } finally {
+      setSummaryLoading(false);
     }
   }
 
@@ -198,8 +215,20 @@ export default function ProjectDetailPage() {
           <div>
             <h1 className="text-2xl font-semibold text-ink">{project.name}</h1>
             <p className="text-sm text-ink-muted mt-1">{project.description}</p>
+            <p className="text-xs text-ink-muted font-mono mt-1">ID: {project.id}</p>
           </div>
-          <Badge status={config.badge}>{config.label}</Badge>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleSummarize}
+              disabled={summaryLoading}
+              className="flex items-center gap-1 text-xs font-medium text-accent hover:underline cursor-pointer disabled:opacity-60 disabled:no-underline disabled:cursor-not-allowed"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              {summaryLoading ? "Summarizing..." : "Summarize"}
+            </button>
+            <Badge status={config.badge}>{config.label}</Badge>
+          </div>
         </div>
 
         <ProgressBar value={project.progress} status={config.bar} label="Progress" />
@@ -214,6 +243,17 @@ export default function ProjectDetailPage() {
             Due {formatDate(project.dueDate)}
           </span>
         </div>
+
+        {summaryError && (
+          <p className="text-xs text-status-danger pt-2 border-t border-surface-border">{summaryError}</p>
+        )}
+
+        {summary && !summaryError && (
+          <div className="flex items-start gap-2 pt-2 border-t border-surface-border">
+            <Sparkles className="w-4 h-4 text-accent shrink-0 mt-0.5" />
+            <p className="text-sm text-ink-muted">{summary}</p>
+          </div>
+        )}
       </Card>
 
       {/* TEAM MEMBERS */}

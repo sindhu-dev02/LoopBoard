@@ -1,3 +1,5 @@
+import { DEV_CONFIG } from "@/lib/devConfig";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export class ApiError extends Error {
@@ -11,6 +13,13 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  if (DEV_CONFIG.delayMs) {
+    await new Promise((resolve) => setTimeout(resolve, DEV_CONFIG.delayMs!));
+  }
+  if (DEV_CONFIG.simulateError) {
+    throw new ApiError(500, "Simulated error (Developer Controls)");
+  }
+  
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     credentials: "include",
