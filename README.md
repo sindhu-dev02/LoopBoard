@@ -1,14 +1,20 @@
 # LoopBoard — Developer Productivity Dashboard
 
-A modern, fully interactive developer productivity dashboard built with Next.js App Router and TypeScript. LoopBoard brings project tracking, task management, team visibility, and analytics together in one clean, responsive, theme-aware interface.
+A full-stack developer productivity dashboard built with Next.js App Router and TypeScript. LoopBoard brings authentication, project tracking, task management, team visibility, AI-assisted summaries, and analytics together in one clean, responsive, theme-aware interface, backed by a real Express + PostgreSQL API.
 
-The application includes a realistic data layer with loading states, simulated network latency, error injection, optimistic updates, and a companion Express REST API for full-stack usage.
-
-**[Live Demo](https://loop-board-six.vercel.app/) · [Backend Documentation](./server/README.md)** · [Video WalkThrough](https://drive.google.com/file/d/1qp_M-4iFi8FCSSAfOYvDn7ZBFUlytaLc/view?usp=drive_link)**
+**[Live Demo](https://loop-board-six.vercel.app/) · [Backend Documentation](./server/README.md)**
 
 ---
 
 ## Features
+
+### Authentication
+
+- Email/password registration and login, with passwords hashed via bcrypt
+- Google OAuth ("Continue with Google") as an alternative sign-in path
+- Forgot-password / email reset flow — a single-use, time-limited reset link sent via email
+- Password policy (minimum 8 characters, one uppercase letter, one number, one special character) enforced identically on the client and server, with a live inline checklist while typing on the register, reset-password, and change-password forms
+- Session persistence via an httpOnly JWT cookie — no tokens in local storage
 
 ### Dashboard
 
@@ -20,18 +26,10 @@ At-a-glance statistics for:
 - Team size
 
 - Click-through stat cards with deep-linkable filtered views
-- Project overview cards with:
-  - Progress bars
-  - Avatar stacks
-  - Status badges
-  - Task counts
-  - Due dates
+- Project overview cards with progress bars, avatar stacks, status badges, task counts, and due dates
 - Debounced project search
 - Status filtering with filter state persisted in the URL
-- Recent tasks — live activity feed showing actions such as:
-  - Task creation
-  - Status changes
-  - Task reassignment
+- Recent activity feed showing task creation, status changes, comments, and completions in real time
 
 ### Tasks
 
@@ -39,173 +37,107 @@ At-a-glance statistics for:
 
 - Search tasks by title or assignee
 - Filter by priority
-- Sort by:
-  - Due date
-  - Priority
-  - Title
-- Multi-select tasks
-- Bulk status updates
+- Sort by due date, priority, or title
+- Multi-select tasks with bulk status updates
 - Create, edit, delete, and reassign tasks
+- Duplicate task names are rejected per-project on creation
 
 #### Kanban Board
 
 - Drag-and-drop workflow using `@dnd-kit/core`
-- Columns:
-  - To Do
-  - In Progress
-  - In Review
-  - Done
-- Optimistic UI updates
-- Automatic rollback when an update fails
+- Columns: To Do, In Progress, In Review, Done
+- Optimistic UI updates with automatic rollback on failure
 - Task CRUD directly from the board
+
+#### Task Comments
+
+- Threaded comments on any task, visible to every project member
+- Comments are attributed to the logged-in user and timestamped
+- Users can delete their own comments
+- Posting a comment logs an activity event, visible in the notifications dropdown and dashboard feed
 
 #### Deep Linking
 
-Filtered task views can be opened directly through URL parameters:
+Filtered task views open directly through URL parameters:
 
 ```
 /tasks?status=done
 /tasks?overdue=true
 ```
 
-Dashboard actions can therefore take users directly to the relevant task view.
-
 ### Projects
 
 #### Project List
 
-- Searchable project directory
-- Project status filtering
-- Live progress indicators
-- Task counts
-- Due dates
-- Team member avatars
+Searchable project directory with status filtering, live progress indicators, task counts, due dates, and team member avatars.
 
 #### Project Details
 
-Each project has its own detail page containing:
-
-- Project overview
-- Progress
-- Due date
-- Team members and roles
-- Project-scoped task management
-  - Add, edit, delete, and reassign tasks
-  - Automatically recalculated task counts
-
-Project members are cross-referenced with the main team directory.
+Each project has its own detail page with the project overview, progress, due date, team members and roles, and project-scoped task management. Also includes an **AI-generated status summary** — a one-click, 3–5 sentence prose digest of the project's current state, generated from its live task data.
 
 ### Team
 
-A centralized team directory displaying:
-
-- Team members
-- Roles
-- Avatars
-- Project participation
+A centralized team directory displaying members, roles, avatars, and project participation.
 
 ### Analytics
 
-LoopBoard includes visual analytics powered by Recharts:
+Visual analytics powered by Recharts, built from live task and project data:
 
-- Task status breakdown using a donut chart
-- Project progress comparison using a bar chart
+- Task status breakdown (donut chart)
+- Project progress comparison (bar chart)
 
-These provide a quick overview of project health and task distribution.
+### AI Features
+
+- **Task suggestions** — generates candidate tasks for a project from its context
+- **Project summarization** — condenses a project's tasks and status into a short prose digest
+
+Both are powered by Gemini and require a `GEMINI_API_KEY` on the backend.
 
 ### Productivity Tools
 
 #### Command Palette
 
-Press:
-
-```
-Ctrl + K
-```
-
-or:
-
-```
-⌘ + K
-```
-
-to open the global command palette.
-
-The command palette allows users to search and navigate across:
-
-- Projects
-- Tasks
-- Team members
-
-It also supports:
-
-- Keyboard navigation
-- Arrow-key selection
-- Enter to navigate
-- Escape to close
-- Search filtering
-- Mouse selection
+Press `Ctrl+K` (or `⌘K`) to open the global command palette. Searches live projects, tasks, and team members — not mock data — with keyboard navigation, arrow-key selection, Enter to navigate, and Escape to close.
 
 #### Notifications
 
-The notification dropdown includes:
-
-- Unread indicator
-- Notification list
-- Relative timestamps
-- Mark-as-read functionality
+The notification bell reflects real activity from the team feed (task creation, status changes, completions, comments), not a static mock list. Unread state is derived from a locally stored "last seen" timestamp — opening the dropdown marks the current time as seen for next time, without changing what's marked unread in the view you're currently looking at.
 
 ### Settings
 
 #### Profile
 
-Update:
+Update name and role, backed by real data — changes persist across sessions.
 
-- Name
-- Role
+#### Security
+
+Change your password (requires your current password), governed by the same complexity policy and inline strength checklist as registration.
 
 #### Appearance
 
-Choose between:
-
-- Light
-- Dark
-- System
-
-Theme preferences are persisted across the application.
+Light, dark, or system theme, persisted across the application with no flash of unstyled content on load.
 
 #### Notifications
 
-Control which application events generate notifications.
+Toggle which application events generate notifications (task assigned, task overdue, comments, weekly summary).
 
 #### Developer Controls
 
-Developer/demo controls allow you to:
+Demo/testing controls to:
 
 - Force simulated API errors
 - Override network delay
-- Test loading states
-- Test error states
-- Test retry behavior
 
-This makes it easy to demonstrate how the application behaves under different network conditions.
+These now apply to **real API calls**, not a mock layer — useful for demonstrating loading, error, and retry states against the actual backend.
 
 ### UX & Polish
 
-LoopBoard is designed to behave like a production application rather than a static dashboard.
-
 - Responsive layouts for mobile, tablet, and desktop
-- Keyboard-accessible interactions
-- Focus-visible states
-- Loading skeletons
-- Empty states
-- Error banners with retry actions
-- Optimistic UI updates
-- Error rollback
-- Debounced search
-- URL-persisted filters
-- Light/dark theme support
-- No flash of unstyled content during theme initialization
+- Keyboard-accessible interactions and focus-visible states
+- Loading skeletons, empty states, and error banners with retry actions
+- Optimistic UI updates with automatic rollback
+- Debounced search and URL-persisted filters
+- Light/dark theme support with no flash of unstyled content
 - Dedicated landing page before entering the dashboard
 
 ---
@@ -222,52 +154,19 @@ LoopBoard is designed to behave like a production application rather than a stat
 | Theming | next-themes |
 | Drag & Drop | `@dnd-kit/core` |
 | Charts | Recharts |
-| Frontend Data Layer | In-memory mock data |
-| Backend | Express REST API |
-| Shared Types | TypeScript types shared between frontend and backend |
+| Backend | Express REST API (see [`server/`](./server)) |
+| Database | PostgreSQL via Prisma |
+| Auth | JWT (httpOnly cookie) + Google OAuth |
+| AI | Gemini |
+| Shared Types | TypeScript types shared between frontend and backend via `@shared/*` |
 
 ---
 
 ## Architecture
 
-LoopBoard supports two data modes.
+LoopBoard is full-stack by default — every screen reads and writes through the Express API in [`server/`](./server), which persists to a real Postgres database via Prisma. There is no mock-data fallback: the frontend always needs `NEXT_PUBLIC_API_URL` pointed at a running backend to function.
 
-### Local Development / Demo Mode
-
-When no backend API is configured, the application uses the local mock data layer:
-
-```
-lib/mock-data.ts
-```
-
-The mock layer simulates:
-
-- Network latency
-- Loading states
-- API failures
-- Create operations
-- Update operations
-- Delete operations
-
-This allows the frontend to be developed and demonstrated without requiring a database or backend server.
-
-### Full-Stack Mode
-
-The repository also contains a companion Express REST API:
-
-```
-server/
-```
-
-The backend provides API endpoints for:
-
-- Users
-- Projects
-- Tasks
-
-It includes CRUD operations, validation, and centralized error handling.
-
-For backend setup and API documentation, see [`server/README.md`](./server/README.md).
+For backend setup, environment variables, and the full API reference, see [`server/README.md`](./server/README.md).
 
 ---
 
@@ -277,6 +176,7 @@ For backend setup and API documentation, see [`server/README.md`](./server/READM
 
 - Node.js
 - npm
+- A running instance of the backend (see [`server/README.md`](./server/README.md)) — the frontend has nothing to render without it
 
 ### Installation
 
@@ -286,49 +186,32 @@ cd LoopBoard
 npm install
 ```
 
+### Configure the API URL
+
+Create `.env.local` at the project root:
+
+```
+NEXT_PUBLIC_API_URL=http://localhost:4000
+```
+
+Point this at your deployed backend URL in production.
+
 ### Start the Development Server
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
-
-You'll first see the **Get Started** landing page. Continue through it to enter the dashboard.
-
-### Connecting the Backend
-
-The frontend can run using local mock data by default.
-
-To connect it to the Express API, first follow the backend setup instructions in [`server/README.md`](./server/README.md).
-
-Then create `.env.local` at the project root and configure:
-
-```
-NEXT_PUBLIC_API_URL=<your-backend-url>
-```
+Open [http://localhost:3000](http://localhost:3000). You'll first see the **Get Started** landing page — continue through it, then register or log in to enter the dashboard.
 
 ### Available Scripts
 
 ```bash
-npm run dev
+npm run dev          # start the development server
+npm run build         # create a production build
+npm run lint           # run ESLint
+npx tsc --noEmit        # type-check without emitting files
 ```
-Start the development server.
-
-```bash
-npm run build
-```
-Create a production build.
-
-```bash
-npm run lint
-```
-Run ESLint.
-
-```bash
-npx tsc --noEmit
-```
-Run TypeScript type checking without emitting files.
 
 ---
 
@@ -339,64 +222,58 @@ LoopBoard/
 │
 ├── src/
 │   ├── app/
-│   │   ├── page.tsx
-│   │   ├── dashboard/
-│   │   │   └── page.tsx
+│   │   ├── page.tsx                    # landing page
+│   │   ├── login/page.tsx
+│   │   ├── register/page.tsx
+│   │   ├── forgot-password/page.tsx
+│   │   ├── reset-password/page.tsx
+│   │   ├── dashboard/page.tsx
 │   │   ├── projects/
 │   │   │   ├── page.tsx
-│   │   │   └── [id]/
-│   │   │       └── page.tsx
-│   │   ├── tasks/
-│   │   │   └── page.tsx
-│   │   ├── team/
-│   │   │   └── page.tsx
-│   │   ├── analytics/
-│   │   │   └── page.tsx
-│   │   ├── settings/
-│   │   │   └── page.tsx
+│   │   │   └── [id]/page.tsx
+│   │   ├── tasks/page.tsx
+│   │   ├── team/page.tsx
+│   │   ├── analytics/page.tsx
+│   │   ├── settings/page.tsx
 │   │   ├── layout.tsx
 │   │   └── globals.css
 │   │
 │   ├── components/
 │   │   ├── layout/
-│   │   │   ├── Navbar
-│   │   │   ├── Sidebar
-│   │   │   ├── AppShell
+│   │   │   ├── Navbar, Sidebar, AppShell
 │   │   │   ├── ProfileMenu
-│   │   │   ├── ThemeProvider
-│   │   │   ├── ThemeToggle
-│   │   │   ├── NotificationsDropdown
-│   │   │   └── CommandPalette
+│   │   │   ├── ThemeProvider, ThemeToggle
+│   │   │   ├── NotificationsDropdown        # live Activity data
+│   │   │   └── CommandPalette                # live search data
 │   │   │
 │   │   ├── ui/
-│   │   │   ├── Card
-│   │   │   ├── Badge
-│   │   │   ├── ProgressBar
-│   │   │   ├── Avatar
-│   │   │   ├── AvatarStack
-│   │   │   ├── Skeleton
-│   │   │   ├── EmptyState
-│   │   │   └── ConfirmDialog
+│   │   │   ├── Card, Badge, ProgressBar
+│   │   │   ├── Avatar, AvatarStack
+│   │   │   ├── Skeleton, EmptyState, ConfirmDialog
+│   │   │   └── PasswordStrengthHints
 │   │   │
 │   │   └── dashboard/
-│   │       ├── StatsRow
-│   │       ├── ProjectCard
-│   │       ├── TaskCard
-│   │       ├── KanbanBoard
-│   │       ├── ActivityFeed
+│   │       ├── StatsRow, ProjectCard, TaskCard
+│   │       ├── KanbanBoard, ActivityFeed
 │   │       ├── AnalyticsCharts
-│   │       ├── TaskFormModal
+│   │       ├── TaskFormModal                  # includes TaskComments when editing
+│   │       ├── TaskComments
 │   │       ├── ProjectFormModal
+│   │       ├── AITaskSuggestionsModal
 │   │       └── SearchFilterBar
 │   │
 │   ├── lib/
-│   │   ├── mock-data.ts
+│   │   ├── api.ts                       # fetch wrapper (credentials, error handling)
+│   │   ├── api/
+│   │   │   ├── auth.ts, users.ts, tasks.ts, projects.ts, team.ts
+│   │   │   ├── comments.ts, notifications.ts, ai.ts, dashboard.ts
+│   │   ├── auth/AuthContext.tsx           # session state, login/register/logout
+│   │   ├── passwordRules.ts                # shared client-side password policy
+│   │   ├── devConfig.ts                     # Developer Controls (delay/error injection)
 │   │   ├── utils.ts
-│   │   └── hooks/
-│   │       └── useDebounce.ts
+│   │   └── hooks/useDebounce.ts
 │   │
-│   └── types/
-│       └── index.ts
+│   └── types/index.ts                       # re-exports from shared/types.ts
 │
 ├── shared/
 │   └── types.ts
@@ -416,66 +293,21 @@ LoopBoard/
 
 ### Tailwind CSS v4
 
-LoopBoard uses Tailwind CSS v4 with semantic design tokens defined through `@theme` in `globals.css`.
-
-The design system includes tokens for concepts such as:
-
-- `surface`
-- `surface-raised`
-- `surface-border`
-- `ink`
-- `ink-muted`
-- `accent`
-- `status-*`
-
-This allows the interface to adapt consistently between light and dark themes.
-
-### Simulated Data Layer
-
-The local mock data layer behaves similarly to a real API instead of returning data synchronously.
-
-Requests can simulate:
-
-- Delays
-- Failures
-- Successful mutations
-- Loading states
-
-This allows every data-driven screen to demonstrate realistic UI states.
+LoopBoard uses Tailwind CSS v4 with semantic design tokens defined through `@theme` in `globals.css` — `surface`, `surface-raised`, `surface-border`, `ink`, `ink-muted`, `accent`, `status-*` — so the interface adapts consistently between light and dark themes.
 
 ### Optimistic Updates
 
-Interactions such as Kanban drag-and-drop and bulk task updates use optimistic UI behavior.
+Interactions such as Kanban drag-and-drop and bulk task updates apply immediately in the UI while the request is in flight, and roll back automatically if the request fails.
 
-The interface updates immediately while the request is processed. If the request fails, the previous state is restored automatically.
+### Password Policy
 
----
-
-## Screenshots
-
-- Dashboard
-- Projects Management
-- Kanban Tasks Board
-- Developer Settings & Themes
+The same rules live in one place on each side — `src/lib/passwordRules.ts` on the frontend, `server/src/schemas/auth.ts` on the backend — so client-side validation and server-side rejection always agree. If you change the policy, update both.
 
 ---
 
 ## Backend
 
-The repository includes a companion Express REST API located in `/server`.
-
-The backend provides the API layer for users, projects, and tasks.
-
-For:
-
-- Backend installation
-- Environment variables
-- API endpoints
-- Request/response examples
-- Validation
-- Error handling
-
-see the dedicated [Backend README →](./server/README.md)
+The companion Express + PostgreSQL API lives in [`server/`](./server). See the [Backend README](./server/README.md) for installation, environment variables, the data model, authentication details, and the full API reference.
 
 ---
 

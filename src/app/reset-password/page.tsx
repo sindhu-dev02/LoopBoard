@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { resetPassword } from "@/lib/api/auth";
@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { PasswordStrengthHints } from "@/components/ui/PasswordStrengthHints";
 import { getFirstPasswordError } from "@/lib/passwordRules";
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token") ?? "";
@@ -113,5 +113,23 @@ export default function ResetPasswordPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+function ResetPasswordFallback() {
+  return (
+    <div className="min-h-screen bg-surface flex items-center justify-center p-4">
+      <div className="w-full max-w-sm bg-surface-raised border border-surface-border rounded-card shadow-card p-6">
+        <p className="text-sm text-ink-muted">Loading...</p>
+      </div>
+    </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<ResetPasswordFallback />}>
+      <ResetPasswordForm />
+    </Suspense>
   );
 }
