@@ -30,6 +30,7 @@ model User {
   provider       String   @default("local")
   role           String
   avatarInitials String?
+  comments Comment[]
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -91,6 +92,7 @@ model Task {
   status    String // todo | in-progress | review | done
   priority  String // low | medium | high
   dueDate   DateTime @db.Date
+  comments Comment[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -139,4 +141,23 @@ model PasswordResetToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("password_reset_tokens")
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  body      String
+  createdAt DateTime @default(now())
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  // Nullable + a denormalized name snapshot, same pattern as Activity.actor:
+  // if the author's account is later deleted, the comment survives and still
+  // shows who wrote it, it just loses the live link to their profile.
+  authorId   String?
+  author     User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  authorName String
+
+  @@index([taskId])
+  @@map("comments")
 }

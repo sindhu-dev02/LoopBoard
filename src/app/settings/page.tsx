@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 import { User, Palette, Bell, Terminal, Check, Sun, Moon, Monitor, KeyRound } from "lucide-react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { updateProfile, changePassword } from "@/lib/api/users";
+import { PasswordStrengthHints } from "@/components/ui/PasswordStrengthHints";
+import { getFirstPasswordError } from "@/lib/passwordRules";
 import { setDevConfig } from "@/lib/devConfig";
 
 function SavedBadge({ show }: { show: boolean }) {
@@ -129,8 +131,9 @@ function ChangePasswordSection() {
       setError(null);
       setSaved(false);
 
-      if (newPassword.length < 6) {
-        setError("New password must be at least 6 characters.");
+      const passwordError = getFirstPasswordError(newPassword);
+      if (passwordError) {
+        setError(passwordError);
         return;
       }
       if (newPassword !== confirmPassword) {
@@ -160,7 +163,7 @@ function ChangePasswordSection() {
         <h2 className="text-sm font-semibold text-ink">Change Password</h2>
       </div>
       <p className="text-xs text-ink-muted -mt-2">
-        Changes your real account password. You'll need your current password to confirm.
+        Changes your real account password. You&apos;ll need your current password to confirm.
       </p>
 
       <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -183,6 +186,7 @@ function ChangePasswordSection() {
             onChange={(e) => setNewPassword(e.target.value)}
             className="w-full rounded-md border border-surface-border bg-surface px-3 py-2 text-sm text-ink outline-none focus-visible:border-accent"
           />
+          <PasswordStrengthHints password={newPassword} className="sm:grid-cols-1" />
         </div>
         <div>
           <label className="text-xs font-medium text-ink-muted block mb-1">Confirm New Password</label>

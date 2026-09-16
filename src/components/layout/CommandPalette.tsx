@@ -3,9 +3,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Search, FolderKanban, ListChecks, Users } from "lucide-react";
-import { fetchProjects, fetchTasks, fetchTeamMembers} from "@/lib/mock-data";
 import { Project, Task, TeamMember } from "@/types";
 import { cn } from "@/lib/utils";
+import { fetchProjects } from "@/lib/api/projects";
+import { fetchTasks } from "@/lib/api/tasks";
+import { fetchTeamMembers } from "@/lib/api/team";
 
 type PaletteItem = {
   id: string;

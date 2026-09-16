@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { cn } from "@/lib/utils";
+import { PasswordStrengthHints } from "@/components/ui/PasswordStrengthHints";
+import { getFirstPasswordError } from "@/lib/passwordRules";
 
 const inputClass = cn(
   "w-full bg-surface border border-surface-border rounded-card",
@@ -25,6 +27,13 @@ export default function RegisterPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    const passwordError = getFirstPasswordError(password);
+    if (passwordError) {
+      setError(passwordError);
+      return;
+    }
+
     setSubmitting(true);
     try {
       await register(name, role, email, password);
@@ -79,11 +88,12 @@ export default function RegisterPage() {
               id="password"
               type="password"
               required
-              minLength={6}
+              minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className={inputClass}
             />
+            <PasswordStrengthHints password={password} />
           </div>
 
           {error && <p className="text-sm text-status-danger">{error}</p>}

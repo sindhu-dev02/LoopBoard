@@ -33,11 +33,12 @@ function formatRelativeTime(iso: string) {
 export function NotificationsDropdown() {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<ActivityEvent[] | null>(null);
-  const lastSeenRef = useRef(0);
+  const [lastSeenAt] = useState<number>(() =>
+    typeof window === "undefined" ? 0 : Number(localStorage.getItem(LAST_SEEN_KEY) ?? 0)
+  );
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    lastSeenRef.current = Number(localStorage.getItem(LAST_SEEN_KEY) ?? 0);
     fetchActivity().then(setItems).catch(() => setItems([]));
   }, []);
 
@@ -61,7 +62,7 @@ export function NotificationsDropdown() {
   }, []);
 
   const unreadCount =
-    items?.filter((e) => new Date(e.timestamp).getTime() > lastSeenRef.current).length ?? 0;
+    items?.filter((e) => new Date(e.timestamp).getTime() > lastSeenAt).length ?? 0;
 
   return (
     <div className="relative" ref={ref}>
@@ -91,7 +92,7 @@ export function NotificationsDropdown() {
             <ul>
               {items.map((event) => {
                 const { title, description } = describeActivity(event);
-                const unread = new Date(event.timestamp).getTime() > lastSeenRef.current;
+                const unread = new Date(event.timestamp).getTime() > lastSeenAt;
                 return (
                   <li key={event.id}>
                     <div

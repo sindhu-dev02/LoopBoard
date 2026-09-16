@@ -83,3 +83,12 @@ export interface TeamMember {
   role: string;
   email: string;
 }
+
+export interface Comment {
+  id: string;
+  taskId: string;
+  authorId: string | null;
+  authorName: string;
+  body: string;
+  createdAt: string;
+}

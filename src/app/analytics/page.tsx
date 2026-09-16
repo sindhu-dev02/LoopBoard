@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchTasks, fetchProjects } from "@/lib/mock-data";
 import { Task, Project } from "@/types";
 import { TaskStatusChart, ProjectProgressChart } from "@/components/dashboard/AnalyticsCharts";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { fetchTasks } from "@/lib/api/tasks";
+import { fetchProjects } from "@/lib/api/projects";
 
 export default function AnalyticsPage() {
   const [tasks, setTasks] = useState<Task[] | null>(null);

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Task, TaskStatus, TaskPriority, Project, TeamMember } from "@/types";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { TaskComments } from "@/components/dashboard/TaskComments";
 
 export interface TaskFormValues {
   title: string;
@@ -200,6 +201,11 @@ export function TaskFormModal({
             </button>
           </div>
         </form>
+        {initialTask && (
+          <div className="px-4 pb-4">
+            <TaskComments taskId={initialTask.id} />
+          </div>
+        )}
       </div>
     </div>
   );

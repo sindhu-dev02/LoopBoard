@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import {
   Task,
+  Comment,
   Project,
   User,
   TeamMember,
@@ -171,6 +172,54 @@ export async function deleteTask(id: string) {
     }
     throw err;
   }
+}
+
+// -----------------------------------------------------------------------
+// Comments
+// -----------------------------------------------------------------------
+
+function serializeComment(comment: Prisma.CommentGetPayload<{}>): Comment {
+  return {
+    id: comment.id,
+    taskId: comment.taskId,
+    authorId: comment.authorId,
+    authorName: comment.authorName,
+    body: comment.body,
+    createdAt: comment.createdAt.toISOString(),
+  };
+}
+
+export async function getCommentsByTask(taskId: string) {
+  const comments = await prisma.comment.findMany({
+    where: { taskId },
+    orderBy: { createdAt: "asc" },
+  });
+  return comments.map(serializeComment);
+}
+
+export async function createComment(data: {
+  taskId: string;
+  authorId: string;
+  authorName: string;
+  body: string;
+}) {
+  try {
+    const comment = await prisma.comment.create({ data });
+    return serializeComment(comment);
+  } catch (err) {
+    translatePrismaError(err);
+  }
+}
+
+export async function deleteComment(
+  id: string,
+  requestingUserId: string
+): Promise<"ok" | "not-found" | "forbidden"> {
+  const existing = await prisma.comment.findUnique({ where: { id } });
+  if (!existing) return "not-found";
+  if (existing.authorId !== requestingUserId) return "forbidden";
+  await prisma.comment.delete({ where: { id } });
+  return "ok";
 }
 
 // -----------------------------------------------------------------------

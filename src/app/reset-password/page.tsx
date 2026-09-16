@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { resetPassword } from "@/lib/api/auth";
 import { cn } from "@/lib/utils";
+import { PasswordStrengthHints } from "@/components/ui/PasswordStrengthHints";
+import { getFirstPasswordError } from "@/lib/passwordRules";
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -25,8 +27,9 @@ export default function ResetPasswordPage() {
       setError("This reset link is missing its token.");
       return;
     }
-    if (newPassword.length < 6) {
-      setError("New password must be at least 6 characters.");
+    const passwordError = getFirstPasswordError(newPassword);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -71,6 +74,7 @@ export default function ResetPasswordPage() {
                   "focus:outline-none focus:ring-2 focus:ring-accent"
                 )}
               />
+              <PasswordStrengthHints password={newPassword} />
             </div>
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-ink mb-1">
