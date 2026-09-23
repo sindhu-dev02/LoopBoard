@@ -30,12 +30,15 @@ model User {
   provider       String   @default("local")
   role           String
   avatarInitials String?
-  comments Comment[]
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   notificationPreference NotificationPreference?
   passwordResetTokens     PasswordResetToken[]
+  ownedProjects           Project[]
+  ownedTeamMembers        TeamMember[]
+  activities              Activity[]
+  comments                Comment[]
 
   @@map("users")
 }
@@ -44,13 +47,25 @@ model TeamMember {
   id        String   @id @default(cuid())
   name      String
   role      String
-  email     String   @unique
+  email     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Nullable so the migration doesn't need to backfill existing rows.
+  // The application always sets this on create going forward — rows left
+  // with a null ownerId (pre-migration legacy/seed data) simply become
+  // invisible to every scoped query, which is the desired outcome.
+  ownerId String?
+  owner   User?   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   assignedTasks Task[]          @relation("TaskAssignee")
   projectLinks  ProjectMember[]
 
+  // Was a bare @unique on email — that made it impossible for two different
+  // users to each have a team member with the same email in their own
+  // separate address book. Scoped to (ownerId, email) instead.
+  @@unique([ownerId, email])
+  @@index([ownerId])
   @@map("team_members")
 }
 
@@ -64,9 +79,13 @@ model Project {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  ownerId String?
+  owner   User?   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
   tasks       Task[]
   memberLinks ProjectMember[]
 
+  @@index([ownerId])
   @@map("projects")
 }
 
@@ -92,7 +111,6 @@ model Task {
   status    String // todo | in-progress | review | done
   priority  String // low | medium | high
   dueDate   DateTime @db.Date
-  comments Comment[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -102,7 +120,28 @@ model Task {
   assigneeId String?
   assignee   TeamMember? @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
 
+  comments Comment[]
+
   @@map("tasks")
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  body      String
+  createdAt DateTime @default(now())
+
+  taskId String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  // Nullable + a denormalized name snapshot, same pattern as Activity.actor:
+  // if the author's account is later deleted, the comment survives and still
+  // shows who wrote it, it just loses the live link to their profile.
+  authorId   String?
+  author     User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  authorName String
+
+  @@index([taskId])
+  @@map("comments")
 }
 
 model Activity {
@@ -113,6 +152,10 @@ model Activity {
   detail    String?
   createdAt DateTime @default(now())
 
+  ownerId String?
+  owner   User?   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
   @@map("activities")
 }
 
@@ -141,23 +184,4 @@ model PasswordResetToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("password_reset_tokens")
-}
-
-model Comment {
-  id        String   @id @default(cuid())
-  body      String
-  createdAt DateTime @default(now())
-
-  taskId String
-  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
-
-  // Nullable + a denormalized name snapshot, same pattern as Activity.actor:
-  // if the author's account is later deleted, the comment survives and still
-  // shows who wrote it, it just loses the live link to their profile.
-  authorId   String?
-  author     User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
-  authorName String
-
-  @@index([taskId])
-  @@map("comments")
 }

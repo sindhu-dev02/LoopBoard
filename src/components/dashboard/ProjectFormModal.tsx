@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ProjectStatus, TeamMember } from "@/types";
+import { Project, ProjectStatus, TeamMember } from "@/types";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { InlineAddMember } from "@/components/dashboard/InlineAddMember";
 
 export interface ProjectFormValues {
   name: string;
@@ -18,6 +19,8 @@ interface ProjectFormModalProps {
   onClose: () => void;
   onSubmit: (values: ProjectFormValues) => void;
   members: TeamMember[];
+  onMemberCreated?: (member: TeamMember) => void;
+  initialProject?: Project | null;
   submitting?: boolean;
 }
 
@@ -32,12 +35,12 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function ProjectFormModal({ open, onClose, onSubmit, members, submitting }: ProjectFormModalProps) {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [status, setStatus] = useState<ProjectStatus>("on-track");
-  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
-  const [dueDate, setDueDate] = useState(todayIso());
+export function ProjectFormModal({ open, onClose, onSubmit, members, onMemberCreated, initialProject, submitting }: ProjectFormModalProps) {
+  const [name, setName] = useState(initialProject?.name ?? "");
+  const [description, setDescription] = useState(initialProject?.description ?? "");
+  const [status, setStatus] = useState<ProjectStatus>(initialProject?.status ?? "on-track");
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>(initialProject?.memberIds ?? []);
+  const [dueDate, setDueDate] = useState(initialProject?.dueDate?.slice(0, 10) ?? todayIso());
 
   useEffect(() => {
     function handleEscape(e: KeyboardEvent) {
@@ -68,7 +71,7 @@ export function ProjectFormModal({ open, onClose, onSubmit, members, submitting 
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-surface-border">
-          <h2 className="text-sm font-semibold text-ink">New Project</h2>
+          <h2 className="text-sm font-semibold text-ink">{initialProject ? "Edit Project" : "New Project"}</h2>
           <button type="button" onClick={onClose} aria-label="Close" className="text-ink-muted hover:text-ink cursor-pointer">
             <X className="w-4 h-4" />
           </button>
@@ -125,7 +128,7 @@ export function ProjectFormModal({ open, onClose, onSubmit, members, submitting 
 
           <div>
             <label className="text-xs font-medium text-ink-muted block mb-1">Team Members</label>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-start gap-2">
               {members.map((m) => {
                 const active = selectedMemberIds.includes(m.id);
                 return (
@@ -144,6 +147,14 @@ export function ProjectFormModal({ open, onClose, onSubmit, members, submitting 
                   </button>
                 );
               })}
+              {onMemberCreated && (
+                <InlineAddMember
+                  onCreated={(member) => {
+                    onMemberCreated(member);
+                    setSelectedMemberIds((prev) => [...prev, member.id]);
+                  }}
+                />
+              )}
             </div>
           </div>
 
@@ -163,7 +174,7 @@ export function ProjectFormModal({ open, onClose, onSubmit, members, submitting 
                 submitting && "opacity-60 cursor-not-allowed"
               )}
             >
-              {submitting ? "Creating..." : "Create Project"}
+              {submitting ? "Saving..." : initialProject ? "Save Changes" : "Create Project"}
             </button>
           </div>
         </form>

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Task, TaskStatus, TaskPriority, Project, TeamMember } from "@/types";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { TaskComments } from "@/components/dashboard/TaskComments";
+import { InlineAddMember } from "@/components/dashboard/InlineAddMember";
 
 export interface TaskFormValues {
   title: string;
@@ -20,6 +20,7 @@ interface TaskFormModalProps {
   onClose: () => void;
   onSubmit: (values: TaskFormValues) => void;
   members: TeamMember[];
+  onMemberCreated?: (member: TeamMember) => void;
   projects?: Project[];
   initialTask?: Task | null;
   submitting?: boolean;
@@ -47,6 +48,7 @@ export function TaskFormModal({
   onClose,
   onSubmit,
   members,
+  onMemberCreated,
   projects = [],
   initialTask,
   submitting,
@@ -168,6 +170,16 @@ export function TaskFormModal({
                 <option key={m.id} value={m.id}>{m.name} — {m.role}</option>
               ))}
             </select>
+            {onMemberCreated && (
+              <div className="mt-2">
+                <InlineAddMember
+                  onCreated={(member) => {
+                    onMemberCreated(member);
+                    setAssigneeId(member.id);
+                  }}
+                />
+              </div>
+            )}
           </div>
 
           <div>
@@ -201,11 +213,6 @@ export function TaskFormModal({
             </button>
           </div>
         </form>
-        {initialTask && (
-          <div className="px-4 pb-4">
-            <TaskComments taskId={initialTask.id} />
-          </div>
-        )}
       </div>
     </div>
   );

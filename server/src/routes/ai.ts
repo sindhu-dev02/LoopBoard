@@ -37,10 +37,10 @@ router.post(
     if (!result.success)
       throw new ValidationError("Invalid request", result.error.issues);
 
-    const project = await getProjectById(result.data.projectId);
+    const project = await getProjectById(result.data.projectId, req.userId!);
     if (!project) throw new NotFoundError("Project not found");
 
-    const tasks = await getTasksByProject(project.id);
+    const tasks = await getTasksByProject(project.id, req.userId!);
 
     const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash" });
 

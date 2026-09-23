@@ -399,6 +399,7 @@ function TasksContent() {
         onClose={() => setTaskModalOpen(false)}
         onSubmit={handleTaskSubmit}
         members={members ?? []}
+        onMemberCreated={(m) => setMembers((prev) => (prev ? [...prev, m] : [m]))}
         projects={projects ?? []}
         initialTask={editingTask}
         submitting={savingTask}

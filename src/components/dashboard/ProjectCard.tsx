@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/Badge";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { AvatarStack } from "@/components/ui/Avatar";
 import { Project, ProjectStatus } from "@/types";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, Pencil, Trash2 } from "lucide-react";
 
 const STATUS_CONFIG: Record<
   ProjectStatus,
@@ -20,7 +20,13 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-export function ProjectCard({ project }: { project: Project }) {
+interface ProjectCardProps {
+  project: Project;
+  onEdit?: (project: Project) => void;
+  onDelete?: (project: Project) => void;
+}
+
+export function ProjectCard({ project, onEdit, onDelete }: ProjectCardProps) {
   const config = STATUS_CONFIG[project.status];
 
   return (
@@ -28,7 +34,29 @@ export function ProjectCard({ project }: { project: Project }) {
       <Card hoverable className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-2">
           <h3 className="font-medium text-ink text-sm leading-tight">{project.name}</h3>
-          <Badge status={config.badge}>{config.label}</Badge>
+          <div className="flex items-center gap-2 shrink-0">
+            {onEdit && (
+              <button
+                type="button"
+                aria-label="Edit project"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEdit(project); }}
+                className="text-ink-faint hover:text-ink cursor-pointer"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                aria-label="Delete project"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(project); }}
+                className="text-ink-faint hover:text-status-danger cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <Badge status={config.badge}>{config.label}</Badge>
+          </div>
         </div>
         <p className="text-xs text-ink-muted line-clamp-2">{project.description}</p>
         <ProgressBar value={project.progress} status={config.bar} />

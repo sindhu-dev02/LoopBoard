@@ -1,19 +1,46 @@
-// Same demo data as seed.js, but never touches the User table — safe to run
-// against a database that already has real registered accounts on it.
-// Run with: node prisma/seed-demo.js
+// Same demo data as seed.js, but never touches the User table, and assigns
+// everything to one existing account instead of leaving it ownerless.
+//
+// Data is now scoped per-owner (see the ownerId migration), so unowned rows
+// are invisible to everyone — this script picks a real account to own the
+// demo data, so you (or a demo/admin account you register first) can log in
+// and see a populated workspace, while every other new registrant still
+// gets a genuinely clean, empty dashboard.
+//
+// Usage:
+//   1. Register the account you want to own the demo data, if you haven't already.
+//   2. SEED_OWNER_EMAIL=you@example.com node prisma/seed-demo.js
+//
+// Safe to re-run: only wipes data owned by that same account, never anyone else's.
 const { PrismaClient } = require("@prisma/client");
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log("Seeding demo data (team/projects/tasks only — users untouched)...");
+  const ownerEmail = process.env.SEED_OWNER_EMAIL;
+  if (!ownerEmail) {
+    console.error(
+      "Set SEED_OWNER_EMAIL to the email of an existing registered account, e.g.\n" +
+      "  SEED_OWNER_EMAIL=you@example.com node prisma/seed-demo.js"
+    );
+    process.exit(1);
+  }
 
-  // Wipe only the demo-data tables, in FK-safe order. Real user accounts,
-  // their comments, and their password reset tokens are never touched.
-  await prisma.task.deleteMany();
-  await prisma.projectMember.deleteMany();
-  await prisma.project.deleteMany();
-  await prisma.teamMember.deleteMany();
+  const owner = await prisma.user.findUnique({ where: { email: ownerEmail } });
+  if (!owner) {
+    console.error(`No registered user found with email "${ownerEmail}". Register that account first.`);
+    process.exit(1);
+  }
+
+  console.log(`Seeding demo data owned by ${owner.name} <${owner.email}>...`);
+
+  // Wipe only this owner's existing demo data, in FK-safe order. Other
+  // users' data, and this user's real (non-demo) rows if any, are untouched
+  // as long as they were also created under this same account.
+  await prisma.task.deleteMany({ where: { project: { ownerId: owner.id } } });
+  await prisma.projectMember.deleteMany({ where: { project: { ownerId: owner.id } } });
+  await prisma.project.deleteMany({ where: { ownerId: owner.id } });
+  await prisma.teamMember.deleteMany({ where: { ownerId: owner.id } });
 
   const members = await Promise.all(
     [
@@ -22,7 +49,7 @@ async function main() {
       { name: "Jo Chen", role: "Backend Engineer", email: "joe@xyz.com" },
       { name: "Max Lee", role: "Full-stack Engineer", email: "max@xyz.com" },
       { name: "Priya Rao", role: "Backend Engineer", email: "priya@xyz.com" },
-    ].map((m) => prisma.teamMember.create({ data: m }))
+    ].map((m) => prisma.teamMember.create({ data: { ...m, ownerId: owner.id } }))
   );
   const byName = Object.fromEntries(members.map((m) => [m.name, m]));
 
@@ -33,6 +60,7 @@ async function main() {
       status: "on-track",
       progress: 72,
       dueDate: new Date("2026-09-15T00:00:00.000Z"),
+      ownerId: owner.id,
       memberLinks: {
         create: ["Sarah Patel", "Alex Kim", "Jo Chen"].map((name) => ({
           teamMember: { connect: { id: byName[name].id } },
@@ -48,6 +76,7 @@ async function main() {
       status: "at-risk",
       progress: 41,
       dueDate: new Date("2026-09-01T00:00:00.000Z"),
+      ownerId: owner.id,
       memberLinks: {
         create: ["Max Lee", "Priya Rao"].map((name) => ({
           teamMember: { connect: { id: byName[name].id } },
@@ -63,6 +92,7 @@ async function main() {
       status: "delayed",
       progress: 25,
       dueDate: new Date("2026-08-30T00:00:00.000Z"),
+      ownerId: owner.id,
       memberLinks: {
         create: ["Jo Chen", "Sarah Patel", "Max Lee", "Priya Rao"].map(
           (name) => ({ teamMember: { connect: { id: byName[name].id } } })
@@ -78,6 +108,7 @@ async function main() {
       status: "completed",
       progress: 100,
       dueDate: new Date("2026-08-10T00:00:00.000Z"),
+      ownerId: owner.id,
       memberLinks: {
         create: ["Alex Kim"].map((name) => ({
           teamMember: { connect: { id: byName[name].id } },
@@ -139,7 +170,7 @@ async function main() {
     ],
   });
 
-  console.log("Demo seed complete. User accounts were not touched.");
+  console.log(`Demo seed complete, owned by ${owner.email}. Other accounts are unaffected.`);
 }
 
 main()

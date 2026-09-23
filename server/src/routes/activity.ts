@@ -7,7 +7,7 @@ const router = Router();
 router.get(
   "/",
   asyncHandler(async (req, res) => {
-    res.json(await getRecentActivity());
+    res.json(await getRecentActivity(req.userId!));
   })
 );
 

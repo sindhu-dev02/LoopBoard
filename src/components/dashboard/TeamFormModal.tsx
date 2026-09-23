@@ -3,24 +3,26 @@
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { TeamMember } from "@/types";
 
 export interface TeamMemberFormValues {
   name: string;
   role: string;
-  email: string;
+  email?: string;
 }
 
 interface TeamFormModalProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (values: TeamMemberFormValues) => void;
+  initialMember?: TeamMember | null;
   submitting?: boolean;
 }
 
-export function TeamFormModal({ open, onClose, onSubmit, submitting }: TeamFormModalProps) {
-  const [name, setName] = useState("");
-  const [role, setRole] = useState("");
-  const [email, setEmail] = useState("");
+export function TeamFormModal({ open, onClose, onSubmit, initialMember, submitting }: TeamFormModalProps) {
+  const [name, setName] = useState(initialMember?.name ?? "");
+  const [role, setRole] = useState(initialMember?.role ?? "");
+  const [email, setEmail] = useState(initialMember?.email ?? "");
 
   useEffect(() => {
     function handleEscape(e: KeyboardEvent) {
@@ -34,8 +36,12 @@ export function TeamFormModal({ open, onClose, onSubmit, submitting }: TeamFormM
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !role.trim() || !email.trim()) return;
-    onSubmit({ name: name.trim(), role: role.trim(), email: email.trim() });
+    if (!name.trim() || !role.trim()) return;
+    onSubmit({
+      name: name.trim(),
+      role: role.trim(),
+      ...(email.trim() ? { email: email.trim() } : {}),
+    });
   }
 
   return (
@@ -45,7 +51,7 @@ export function TeamFormModal({ open, onClose, onSubmit, submitting }: TeamFormM
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-surface-border">
-          <h2 className="text-sm font-semibold text-ink">Add Team Member</h2>
+          <h2 className="text-sm font-semibold text-ink">{initialMember ? "Edit Team Member" : "Add Team Member"}</h2>
           <button type="button" onClick={onClose} aria-label="Close" className="text-ink-muted hover:text-ink cursor-pointer">
             <X className="w-4 h-4" />
           </button>
@@ -76,10 +82,9 @@ export function TeamFormModal({ open, onClose, onSubmit, submitting }: TeamFormM
           </div>
 
           <div>
-            <label className="text-xs font-medium text-ink-muted block mb-1">Email</label>
+            <label className="text-xs font-medium text-ink-muted block mb-1">Email <span className="text-ink-faint">(optional)</span></label>
             <input
               type="email"
-              required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-md border border-surface-border bg-surface px-3 py-2 text-sm text-ink outline-none focus-visible:border-accent"
@@ -103,7 +108,7 @@ export function TeamFormModal({ open, onClose, onSubmit, submitting }: TeamFormM
                 submitting && "opacity-60 cursor-not-allowed"
               )}
             >
-              {submitting ? "Adding..." : "Add Member"}
+              {submitting ? "Saving..." : initialMember ? "Save Changes" : "Add Member"}
             </button>
           </div>
         </form>

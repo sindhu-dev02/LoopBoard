@@ -6,7 +6,11 @@ import { Project, Task, TeamMember } from "@/types";
 import {
   fetchProjectById,
   fetchProjectMembers,
+  updateProject,
+  deleteProject,
 } from "@/lib/api/projects";
+import { fetchTeamMembers, updateTeamMember } from "@/lib/api/team";
+import { TeamFormModal, TeamMemberFormValues } from "@/components/dashboard/TeamFormModal";
 import { fetchProjectTasks, createTask, updateTask, deleteTask } from "@/lib/api/tasks";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -17,7 +21,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { TaskCard } from "@/components/dashboard/TaskCard";
 import { TaskCardSkeleton } from "@/components/dashboard/TaskCardSkeleton";
 import { TaskFormModal, TaskFormValues } from "@/components/dashboard/TaskFormModal";
-import { ArrowLeft, CalendarDays, ListChecks, FolderX, Plus, Sparkles } from "lucide-react";
+import { ProjectFormModal, ProjectFormValues } from "@/components/dashboard/ProjectFormModal";
+import { ArrowLeft, CalendarDays, ListChecks, FolderX, Plus, Pencil, Trash2, Sparkles } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { generateTaskSuggestions, summarizeProject, AITaskSuggestion } from "@/lib/api/ai";
 import { AITaskSuggestionsModal } from "@/components/dashboard/AITaskSuggestionsModal";
@@ -39,11 +44,21 @@ export default function ProjectDetailPage() {
 
   const [project, setProject] = useState<Project | null | undefined>(undefined); // undefined = loading, null = not found
   const [members, setMembers] = useState<TeamMember[] | null>(null);
+  const [allMembers, setAllMembers] = useState<TeamMember[] | null>(null);
   const [tasks, setTasks] = useState<Task[] | null>(null);
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [savingTask, setSavingTask] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
+  const [projectModalOpen, setProjectModalOpen] = useState(false);
+  const [savingProject, setSavingProject] = useState(false);
+  const [confirmDeleteProjectOpen, setConfirmDeleteProjectOpen] = useState(false);
+  const [deletingProject, setDeletingProject] = useState(false);
+  const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
+  const [memberModalOpen, setMemberModalOpen] = useState(false);
+  const [savingMember, setSavingMember] = useState(false);
+  const [memberToRemove, setMemberToRemove] = useState<TeamMember | null>(null);
+  const [removingMember, setRemovingMember] = useState(false);
   const [aiModalOpen, setAiModalOpen] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -56,6 +71,7 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     fetchProjectById(params.id).then(setProject);
     fetchProjectTasks(params.id).then(setTasks);
+    fetchTeamMembers().then(setAllMembers);
   }, [params.id]);
 
   useEffect(() => {
@@ -67,6 +83,102 @@ export default function ProjectDetailPage() {
   function openCreateModal() {
     setEditingTask(null);
     setTaskModalOpen(true);
+  }
+
+  async function handleMemberCreated(member: TeamMember) {
+    // Update immediately so the assignee dropdown has them right away.
+    setMembers((prev) => (prev ? [...prev, member] : [member]));
+
+    // Also attach to this project, since the picker on this page is scoped
+    // to project.memberIds, not the full account roster — without this
+    // they'd vanish from the assignee list again on next reload.
+    if (!project) return;
+    try {
+      const updated = await updateProject(project.id, {
+        memberIds: [...(project.memberIds ?? []), member.id],
+      });
+      setProject(updated);
+    } catch (err) {
+      console.error("Member was created but couldn't be attached to this project", err);
+    }
+  }
+
+  function openEditProjectModal() {
+    setProjectModalOpen(true);
+  }
+
+  async function handleProjectSubmit(values: ProjectFormValues) {
+    if (!project) return;
+    setSavingProject(true);
+    try {
+      const updated = await updateProject(project.id, values);
+      setProject(updated);
+      setMembers(await fetchProjectMembers(updated.memberIds ?? []));
+      setProjectModalOpen(false);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setSavingProject(false);
+    }
+  }
+
+  async function confirmDeleteProject() {
+    if (!project) return;
+    setDeletingProject(true);
+    try {
+      await deleteProject(project.id);
+      router.push("/projects");
+    } catch (err) {
+      setDeletingProject(false);
+      setConfirmDeleteProjectOpen(false);
+      alert(err instanceof Error ? err.message : "Failed to delete project");
+    }
+  }
+
+  // Used by the edit-project modal's inline "add new member" — goes into the
+  // full roster (allMembers), not the project-scoped `members` list, since
+  // the form lets you pick who to newly attach from the whole account.
+  function handleRosterMemberCreated(member: TeamMember) {
+    setAllMembers((prev) => (prev ? [...prev, member] : [member]));
+  }
+
+  function openEditMemberModal(member: TeamMember) {
+    setEditingMember(member);
+    setMemberModalOpen(true);
+  }
+
+  async function handleMemberEditSubmit(values: TeamMemberFormValues) {
+    if (!editingMember) return;
+    setSavingMember(true);
+    try {
+      const updated = await updateTeamMember(editingMember.id, values);
+      // Name/role are account-wide, not project-scoped, so keep both lists
+      // (this project's members, and the full roster) in sync with the edit.
+      setMembers((prev) => prev?.map((m) => (m.id === updated.id ? updated : m)) ?? null);
+      setAllMembers((prev) => prev?.map((m) => (m.id === updated.id ? updated : m)) ?? null);
+      setMemberModalOpen(false);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setSavingMember(false);
+    }
+  }
+
+  async function confirmRemoveMember() {
+    if (!project || !memberToRemove) return;
+    setRemovingMember(true);
+    try {
+      const updated = await updateProject(project.id, {
+        memberIds: (project.memberIds ?? []).filter((id) => id !== memberToRemove.id),
+      });
+      setProject(updated);
+      setMembers((prev) => prev?.filter((m) => m.id !== memberToRemove.id) ?? null);
+      setMemberToRemove(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to remove member");
+    } finally {
+      setRemovingMember(false);
+    }
   }
 
   function openEditModal(task: Task) {
@@ -227,6 +339,22 @@ export default function ProjectDetailPage() {
               <Sparkles className="w-3.5 h-3.5" />
               {summaryLoading ? "Summarizing..." : "Summarize"}
             </button>
+            <button
+              type="button"
+              onClick={openEditProjectModal}
+              aria-label="Edit project"
+              className="text-ink-faint hover:text-ink cursor-pointer"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmDeleteProjectOpen(true)}
+              aria-label="Delete project"
+              className="text-ink-faint hover:text-status-danger cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
             <Badge status={config.badge}>{config.label}</Badge>
           </div>
         </div>
@@ -273,9 +401,27 @@ export default function ProjectDetailPage() {
             : members.map((m) => (
                 <Card key={m.id} className="flex items-center gap-3">
                   <Avatar name={m.name} />
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-ink">{m.name}</p>
                     <p className="text-xs text-ink-muted">{m.role}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      aria-label="Edit member"
+                      onClick={() => openEditMemberModal(m)}
+                      className="text-ink-faint hover:text-ink cursor-pointer"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Remove from project"
+                      onClick={() => setMemberToRemove(m)}
+                      className="text-ink-faint hover:text-status-danger cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </Card>
               ))}
@@ -332,11 +478,12 @@ export default function ProjectDetailPage() {
       </section>
 
       <TaskFormModal
-        key={taskModalOpen ? (editingTask?.id ?? "new") : "closed"}
+        key={`task-modal-${taskModalOpen ? (editingTask?.id ?? "new") : "closed"}`}
         open={taskModalOpen}
         onClose={() => setTaskModalOpen(false)}
         onSubmit={handleTaskSubmit}
         members={members ?? []}
+        onMemberCreated={handleMemberCreated}
         initialTask={editingTask}
         submitting={savingTask}
       />
@@ -347,6 +494,50 @@ export default function ProjectDetailPage() {
         message="Delete this task? This can't be undone."
         onConfirm={confirmDeleteTask}
         onCancel={() => setTaskToDelete(null)}
+      />
+
+      <ProjectFormModal
+        key={`project-modal-${projectModalOpen ? "editing" : "closed"}`}
+        open={projectModalOpen}
+        onClose={() => setProjectModalOpen(false)}
+        onSubmit={handleProjectSubmit}
+        members={allMembers ?? []}
+        onMemberCreated={handleRosterMemberCreated}
+        initialProject={project}
+        submitting={savingProject}
+      />
+
+      <ConfirmDialog
+        open={confirmDeleteProjectOpen}
+        title="Delete project?"
+        message={`"${project.name}" and all of its tasks will be permanently removed. This can't be undone.`}
+        confirmLabel={deletingProject ? "Deleting..." : "Yes, delete"}
+        cancelLabel="No"
+        onConfirm={confirmDeleteProject}
+        onCancel={() => setConfirmDeleteProjectOpen(false)}
+      />
+
+      <TeamFormModal
+        key={memberModalOpen ? `member-modal-${editingMember?.id ?? "none"}` : "member-modal-closed"}
+        open={memberModalOpen}
+        onClose={() => setMemberModalOpen(false)}
+        onSubmit={handleMemberEditSubmit}
+        initialMember={editingMember}
+        submitting={savingMember}
+      />
+
+      <ConfirmDialog
+        open={!!memberToRemove}
+        title="Remove from project?"
+        message={
+          memberToRemove
+            ? `${memberToRemove.name} will no longer be assignable to tasks in this project. They stay on your team roster.`
+            : ""
+        }
+        confirmLabel={removingMember ? "Removing..." : "Yes, remove"}
+        cancelLabel="No"
+        onConfirm={confirmRemoveMember}
+        onCancel={() => setMemberToRemove(null)}
       />
 
       <AITaskSuggestionsModal

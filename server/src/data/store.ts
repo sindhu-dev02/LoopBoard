@@ -3,11 +3,10 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import {
   Task,
-  Comment,
   Project,
   User,
   TeamMember,
-  ActivityEvent
+  ActivityEvent,
 } from "@shared/types";
 import { NotFoundError } from "../errors/AppError";
 import crypto from "crypto";
@@ -47,6 +46,10 @@ function translatePrismaError(err: unknown): never {
 
 // -----------------------------------------------------------------------
 // Tasks
+//
+// Task has no ownerId column of its own — it's scoped transitively through
+// its Project's ownerId, so every query below filters/joins through
+// `project: { ownerId }` rather than duplicating ownership onto Task too.
 // -----------------------------------------------------------------------
 
 type TaskWithAssignee = Prisma.TaskGetPayload<{
@@ -66,26 +69,27 @@ function serializeTask(task: TaskWithAssignee): Task {
   };
 }
 
-export async function getAllTasks() {
+export async function getAllTasks(ownerId: string) {
   const tasks = await prisma.task.findMany({
+    where: { project: { ownerId } },
     include: { assignee: true },
     orderBy: { createdAt: "asc" },
   });
   return tasks.map(serializeTask);
 }
 
-export async function getTasksByProject(projectId: string) {
+export async function getTasksByProject(projectId: string, ownerId: string) {
   const tasks = await prisma.task.findMany({
-    where: { projectId },
+    where: { projectId, project: { ownerId } },
     include: { assignee: true },
     orderBy: { createdAt: "asc" },
   });
   return tasks.map(serializeTask);
 }
 
-export async function getTaskById(id: string) {
-  const task = await prisma.task.findUnique({
-    where: { id },
+export async function getTaskById(id: string, ownerId: string) {
+  const task = await prisma.task.findFirst({
+    where: { id, project: { ownerId } },
     include: { assignee: true },
   });
   return task ? serializeTask(task) : null;
@@ -93,11 +97,13 @@ export async function getTaskById(id: string) {
 
 export async function taskTitleExistsInProject(
   projectId: string,
-  title: string
+  title: string,
+  ownerId: string
 ): Promise<boolean> {
   const existing = await prisma.task.findFirst({
     where: {
       projectId,
+      project: { ownerId },
       title: { equals: title, mode: "insensitive" },
     },
     select: { id: true },
@@ -105,6 +111,10 @@ export async function taskTitleExistsInProject(
   return existing !== null;
 }
 
+// Note: this does NOT validate that projectId/assigneeId belong to ownerId —
+// that's done in the route (via getProjectById/getTeamMemberById, both
+// owner-scoped) before this is called, so a 404 with a clear message is
+// thrown before we ever get here rather than a generic Prisma FK error.
 export async function createTask(data: Omit<Task, "id" | "assignee">) {
   try {
     const task = await prisma.task.create({
@@ -128,98 +138,56 @@ export async function createTask(data: Omit<Task, "id" | "assignee">) {
 
 export async function updateTask(
   id: string,
-  updates: Partial<Omit<Task, "id" | "assignee">>
+  updates: Partial<Omit<Task, "id" | "assignee">>,
+  ownerId: string
 ) {
-  try {
-    const { projectId, assigneeId, dueDate, ...rest } = updates;
+  const { projectId, assigneeId, dueDate, ...rest } = updates;
 
-    const task = await prisma.task.update({
-      where: { id },
-      data: {
-        ...rest,
-        ...(dueDate ? { dueDate: toDateOnly(dueDate) } : {}),
-        ...(projectId ? { project: { connect: { id: projectId } } } : {}),
-        ...(assigneeId !== undefined
-          ? assigneeId
-            ? { assignee: { connect: { id: assigneeId } } }
-            : { assignee: { disconnect: true } }
-          : {}),
-      },
-      include: { assignee: true },
-    });
-    return serializeTask(task);
-  } catch (err) {
-    if (
-      err instanceof Prisma.PrismaClientKnownRequestError &&
-      err.code === "P2025"
-    ) {
-      return null;
-    }
-    translatePrismaError(err);
-  }
-}
-
-export async function deleteTask(id: string) {
-  try {
-    await prisma.task.delete({ where: { id } });
-    return true;
-  } catch (err) {
-    if (
-      err instanceof Prisma.PrismaClientKnownRequestError &&
-      err.code === "P2025"
-    ) {
-      return false;
-    }
-    throw err;
-  }
-}
-
-// -----------------------------------------------------------------------
-// Comments
-// -----------------------------------------------------------------------
-
-function serializeComment(comment: Prisma.CommentGetPayload<{}>): Comment {
-  return {
-    id: comment.id,
-    taskId: comment.taskId,
-    authorId: comment.authorId,
-    authorName: comment.authorName,
-    body: comment.body,
-    createdAt: comment.createdAt.toISOString(),
-  };
-}
-
-export async function getCommentsByTask(taskId: string) {
-  const comments = await prisma.comment.findMany({
-    where: { taskId },
-    orderBy: { createdAt: "asc" },
+  // updateMany + a follow-up read, rather than update(), because `update`
+  // has no owner-scoped `where` support beyond a unique key — this way a
+  // task that isn't yours returns "not found" instead of touching it.
+  const { count } = await prisma.task.updateMany({
+    where: { id, project: { ownerId } },
+    data: {
+      ...rest,
+      ...(dueDate ? { dueDate: toDateOnly(dueDate) } : {}),
+    },
   });
-  return comments.map(serializeComment);
-}
+  if (count === 0) return null;
 
-export async function createComment(data: {
-  taskId: string;
-  authorId: string;
-  authorName: string;
-  body: string;
-}) {
-  try {
-    const comment = await prisma.comment.create({ data });
-    return serializeComment(comment);
-  } catch (err) {
-    translatePrismaError(err);
+  // Relation fields (project/assignee reconnect) need a real `update`, not
+  // `updateMany` — safe to run now since the ownership check above already
+  // passed for this exact id.
+  if (projectId || assigneeId !== undefined) {
+    try {
+      await prisma.task.update({
+        where: { id },
+        data: {
+          ...(projectId ? { project: { connect: { id: projectId } } } : {}),
+          ...(assigneeId !== undefined
+            ? assigneeId
+              ? { assignee: { connect: { id: assigneeId } } }
+              : { assignee: { disconnect: true } }
+            : {}),
+        },
+      });
+    } catch (err) {
+      translatePrismaError(err);
+    }
   }
+
+  const task = await prisma.task.findUnique({
+    where: { id },
+    include: { assignee: true },
+  });
+  return task ? serializeTask(task) : null;
 }
 
-export async function deleteComment(
-  id: string,
-  requestingUserId: string
-): Promise<"ok" | "not-found" | "forbidden"> {
-  const existing = await prisma.comment.findUnique({ where: { id } });
-  if (!existing) return "not-found";
-  if (existing.authorId !== requestingUserId) return "forbidden";
-  await prisma.comment.delete({ where: { id } });
-  return "ok";
+export async function deleteTask(id: string, ownerId: string) {
+  const { count } = await prisma.task.deleteMany({
+    where: { id, project: { ownerId } },
+  });
+  return count > 0;
 }
 
 // -----------------------------------------------------------------------
@@ -255,24 +223,42 @@ const projectInclude = {
   tasks: { select: { status: true } },
 } satisfies Prisma.ProjectInclude;
 
-export async function getAllProjects() {
+export async function getAllProjects(ownerId: string) {
   const projects = await prisma.project.findMany({
+    where: { ownerId },
     include: projectInclude,
     orderBy: { createdAt: "asc" },
   });
   return projects.map(serializeProject);
 }
 
-export async function getProjectById(id: string) {
-  const project = await prisma.project.findUnique({
-    where: { id },
+export async function getProjectById(id: string, ownerId: string) {
+  const project = await prisma.project.findFirst({
+    where: { id, ownerId },
     include: projectInclude,
   });
   return project ? serializeProject(project) : null;
 }
 
+/**
+ * True only if every id in memberIds is a team member owned by ownerId.
+ * Called before create/update so a user can't attach someone else's team
+ * member to their project just by knowing/guessing its id.
+ */
+export async function allTeamMembersOwnedBy(
+  memberIds: string[],
+  ownerId: string
+): Promise<boolean> {
+  if (memberIds.length === 0) return true;
+  const count = await prisma.teamMember.count({
+    where: { id: { in: memberIds }, ownerId },
+  });
+  return count === memberIds.length;
+}
+
 export async function createProject(
-  data: Omit<Project, "id" | "taskCount" | "completedTaskCount" | "members">
+  data: Omit<Project, "id" | "taskCount" | "completedTaskCount" | "members">,
+  ownerId: string
 ) {
   try {
     const project = await prisma.project.create({
@@ -282,6 +268,7 @@ export async function createProject(
         status: data.status,
         progress: data.progress,
         dueDate: toDateOnly(data.dueDate),
+        owner: { connect: { id: ownerId } },
         memberLinks: {
           create: (data.memberIds ?? []).map((teamMemberId) => ({
             teamMember: { connect: { id: teamMemberId } },
@@ -300,8 +287,17 @@ export async function updateProject(
   id: string,
   updates: Partial<
     Omit<Project, "id" | "taskCount" | "completedTaskCount" | "members">
-  >
+  >,
+  ownerId: string
 ) {
+  // Ownership check first — updateMany with an empty data patch just to
+  // verify ownership, then a real update for the relation fields.
+  const owned = await prisma.project.findFirst({
+    where: { id, ownerId },
+    select: { id: true },
+  });
+  if (!owned) return null;
+
   try {
     const { memberIds, dueDate, ...rest } = updates;
 
@@ -325,29 +321,13 @@ export async function updateProject(
     });
     return serializeProject(project);
   } catch (err) {
-    if (
-      err instanceof Prisma.PrismaClientKnownRequestError &&
-      err.code === "P2025"
-    ) {
-      return null;
-    }
     translatePrismaError(err);
   }
 }
 
-export async function deleteProject(id: string) {
-  try {
-    await prisma.project.delete({ where: { id } });
-    return true;
-  } catch (err) {
-    if (
-      err instanceof Prisma.PrismaClientKnownRequestError &&
-      err.code === "P2025"
-    ) {
-      return false;
-    }
-    throw err;
-  }
+export async function deleteProject(id: string, ownerId: string) {
+  const { count } = await prisma.project.deleteMany({ where: { id, ownerId } });
+  return count > 0;
 }
 
 // -----------------------------------------------------------------------
@@ -358,31 +338,37 @@ function serializeTeamMember(member: {
   id: string;
   name: string;
   role: string;
-  email: string;
+  email: string | null;
 }): TeamMember {
   return {
     id: member.id,
     name: member.name,
     role: member.role,
-    email: member.email,
+    email: member.email ?? undefined,
   };
 }
 
-export async function getAllTeamMembers() {
+export async function getAllTeamMembers(ownerId: string) {
   const members = await prisma.teamMember.findMany({
+    where: { ownerId },
     orderBy: { createdAt: "asc" },
   });
   return members.map(serializeTeamMember);
 }
 
-export async function getTeamMemberById(id: string) {
-  const member = await prisma.teamMember.findUnique({ where: { id } });
+export async function getTeamMemberById(id: string, ownerId: string) {
+  const member = await prisma.teamMember.findFirst({ where: { id, ownerId } });
   return member ? serializeTeamMember(member) : null;
 }
 
-export async function createTeamMember(data: Omit<TeamMember, "id">) {
+export async function createTeamMember(
+  data: Omit<TeamMember, "id">,
+  ownerId: string
+) {
   try {
-    const member = await prisma.teamMember.create({ data });
+    const member = await prisma.teamMember.create({
+      data: { ...data, owner: { connect: { id: ownerId } } },
+    });
     return serializeTeamMember(member);
   } catch (err) {
     translatePrismaError(err);
@@ -391,38 +377,21 @@ export async function createTeamMember(data: Omit<TeamMember, "id">) {
 
 export async function updateTeamMember(
   id: string,
-  updates: Partial<TeamMember>
+  updates: Partial<TeamMember>,
+  ownerId: string
 ) {
-  try {
-    const member = await prisma.teamMember.update({
-      where: { id },
-      data: updates,
-    });
-    return serializeTeamMember(member);
-  } catch (err) {
-    if (
-      err instanceof Prisma.PrismaClientKnownRequestError &&
-      err.code === "P2025"
-    ) {
-      return null;
-    }
-    translatePrismaError(err);
-  }
+  const { count } = await prisma.teamMember.updateMany({
+    where: { id, ownerId },
+    data: updates,
+  });
+  if (count === 0) return null;
+  const member = await prisma.teamMember.findUnique({ where: { id } });
+  return member ? serializeTeamMember(member) : null;
 }
 
-export async function deleteTeamMember(id: string) {
-  try {
-    await prisma.teamMember.delete({ where: { id } });
-    return true;
-  } catch (err) {
-    if (
-      err instanceof Prisma.PrismaClientKnownRequestError &&
-      err.code === "P2025"
-    ) {
-      return false;
-    }
-    throw err;
-  }
+export async function deleteTeamMember(id: string, ownerId: string) {
+  const { count } = await prisma.teamMember.deleteMany({ where: { id, ownerId } });
+  return count > 0;
 }
 
 // -----------------------------------------------------------------------
@@ -561,12 +530,14 @@ export async function logActivity(data: {
   action: ActivityEvent["action"];
   target: string;
   detail?: string;
+  ownerId: string;
 }) {
-  await prisma.activity.create  ({ data });
+  await prisma.activity.create({ data });
 }
 
-export async function getRecentActivity(limit = 20) {
+export async function getRecentActivity(ownerId: string, limit = 20) {
   const events = await prisma.activity.findMany({
+    where: { ownerId },
     orderBy: { createdAt: "desc" },
     take: limit,
   });
@@ -577,20 +548,28 @@ export async function getRecentActivity(limit = 20) {
 // Dashboard stats
 // -----------------------------------------------------------------------
 
-export async function getDashboardStats() {
+export async function getDashboardStats(ownerId: string) {
   const now = new Date();
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
   const [activeProjects, tasksCompletedThisWeek, tasksOverdue, teamMembers] =
     await Promise.all([
-      prisma.project.count({ where: { status: { not: "completed" } } }),
+      prisma.project.count({ where: { ownerId, status: { not: "completed" } } }),
       prisma.task.count({
-        where: { status: "done", updatedAt: { gte: weekAgo } },
+        where: {
+          status: "done",
+          updatedAt: { gte: weekAgo },
+          project: { ownerId },
+        },
       }),
       prisma.task.count({
-        where: { status: { not: "done" }, dueDate: { lt: now } },
+        where: {
+          status: { not: "done" },
+          dueDate: { lt: now },
+          project: { ownerId },
+        },
       }),
-      prisma.teamMember.count(),
+      prisma.teamMember.count({ where: { ownerId } }),
     ]);
 
   return { activeProjects, tasksCompletedThisWeek, tasksOverdue, teamMembers };
@@ -611,7 +590,6 @@ export async function updateNotificationPreferences(
   patch: Partial<{
     taskAssigned: boolean;
     taskOverdue: boolean;
-    comments: boolean;
     weeklySummary: boolean;
   }>
 ) {
