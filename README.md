@@ -1,8 +1,28 @@
-# LoopBoard — Developer Productivity Dashboard
+# LoopBoard
 
-A full-stack developer productivity dashboard built with Next.js App Router and TypeScript. LoopBoard brings authentication, project tracking, task management, team visibility, AI-assisted summaries, and analytics together in one clean, responsive, theme-aware interface, backed by a real Express + PostgreSQL API.
+A full-stack developer productivity and project management application for organizing projects, tasks, team members, comments, notifications, analytics, and AI-assisted features in one place.
 
-**[Live Demo](https://loop-board-six.vercel.app/) · [Backend Documentation](./server/README.md)**
+LoopBoard is built with **Next.js, TypeScript, Node.js, Express, Prisma, and PostgreSQL**, with a separate frontend and backend architecture.
+
+---
+
+## Tech Stack
+
+| Layer               | Choice                          |
+| ------------------- | ------------------------------- |
+| Frontend            | Next.js 16 + React + TypeScript |
+| Styling             | Tailwind CSS                    |
+| Runtime             | Node.js + Express               |
+| Language            | TypeScript                      |
+| Validation          | Zod                             |
+| Database            | PostgreSQL                      |
+| ORM                 | Prisma                          |
+| Auth                | JWT (httpOnly cookie) + bcrypt  |
+| OAuth               | Google OAuth                    |
+| Email               | Nodemailer via Resend SMTP      |
+| AI                  | Google Gemini                   |
+| Frontend Deployment | Vercel                          |
+| Backend Deployment  | Render / Node.js hosting        |
 
 ---
 
@@ -10,163 +30,83 @@ A full-stack developer productivity dashboard built with Next.js App Router and 
 
 ### Authentication
 
-- Email/password registration and login, with passwords hashed via bcrypt
-- Google OAuth ("Continue with Google") as an alternative sign-in path
-- Forgot-password / email reset flow — a single-use, time-limited reset link sent via email
-- Password policy (minimum 8 characters, one uppercase letter, one number, one special character) enforced identically on the client and server, with a live inline checklist while typing on the register, reset-password, and change-password forms
-- Session persistence via an httpOnly JWT cookie — no tokens in local storage
+* User registration and login
+* Logout
+* Session checking through `/api/auth/me`
+* JWT authentication using an httpOnly cookie
+* Google OAuth sign-in
+* Forgot-password and reset-password flow
+* Password validation and secure password hashing with bcrypt
+* Separate handling for Google-provider and password-provider accounts
 
 ### Dashboard
 
-At-a-glance statistics for:
-
-- Active projects
-- Tasks completed this week
-- Overdue tasks
-- Team size
-
-- Click-through stat cards with deep-linkable filtered views
-- Project overview cards with progress bars, avatar stacks, status badges, task counts, and due dates
-- Debounced project search
-- Status filtering with filter state persisted in the URL
-- Recent activity feed showing task creation, status changes, comments, and completions in real time
-
-### Tasks
-
-#### List View
-
-- Search tasks by title or assignee
-- Filter by priority
-- Sort by due date, priority, or title
-- Multi-select tasks with bulk status updates
-- Create, edit, delete, and reassign tasks
-- Duplicate task names are rejected per-project on creation
-
-#### Kanban Board
-
-- Drag-and-drop workflow using `@dnd-kit/core`
-- Columns: To Do, In Progress, In Review, Done
-- Optimistic UI updates with automatic rollback on failure
-- Task CRUD directly from the board
-
-#### Task Comments
-
-- Threaded comments on any task, visible to every project member
-- Comments are attributed to the logged-in user and timestamped
-- Users can delete their own comments
-- Posting a comment logs an activity event, visible in the notifications dropdown and dashboard feed
-
-#### Deep Linking
-
-Filtered task views open directly through URL parameters:
-
-```
-/tasks?status=done
-/tasks?overdue=true
-```
+* Personalized dashboard
+* Project statistics
+* Task statistics
+* Activity information
+* Team information
+* Productivity-related data
+* AI-assisted project information
 
 ### Projects
 
-#### Project List
+* Create projects
+* View projects belonging to the authenticated user
+* View individual project details
+* Edit projects
+* Delete projects
+* Project ownership and authorization checks
+* Assign team members to projects
+* Remove team members from individual projects
+* Project deletion cascades to associated tasks
 
-Searchable project directory with status filtering, live progress indicators, task counts, due dates, and team member avatars.
+### Tasks
 
-#### Project Details
+* Create tasks
+* View tasks
+* Edit tasks
+* Delete tasks
+* Assign tasks to team members
+* Project-based task organization
+* Duplicate task-name protection within a project
+* Task comments
+* Activity tracking
 
-Each project has its own detail page with the project overview, progress, due date, team members and roles, and project-scoped task management. Also includes an **AI-generated status summary** — a one-click, 3–5 sentence prose digest of the project's current state, generated from its live task data.
+### Team Members
 
-### Team
+* Create team members
+* View the complete team roster
+* Edit team-member information
+* Delete team members
+* Add team members to projects
+* Remove team members from individual projects
 
-A centralized team directory displaying members, roles, avatars, and project participation.
+Editing a team member updates their account-level information, while removing a member from a project only changes that project's membership.
 
-### Analytics
+### Task Comments
 
-Visual analytics powered by Recharts, built from live task and project data:
+* Add comments to tasks
+* View task comments
+* Author attribution
+* Author-only comment deletion
+* Comment activity tracking
 
-- Task status breakdown (donut chart)
-- Project progress comparison (bar chart)
+### Notifications
+
+* Per-user notification preferences
+* Configure which notification event types matter to the user
 
 ### AI Features
 
-- **Task suggestions** — generates candidate tasks for a project from its context
-- **Project summarization** — condenses a project's tasks and status into a short prose digest
+* AI-generated task suggestions
+* AI-generated project status summaries
+* Google Gemini integration
 
-Both are powered by Gemini and require a `GEMINI_API_KEY` on the backend.
+### Analytics
 
-### Productivity Tools
-
-#### Command Palette
-
-Press `Ctrl+K` (or `⌘K`) to open the global command palette. Searches live projects, tasks, and team members — not mock data — with keyboard navigation, arrow-key selection, Enter to navigate, and Escape to close.
-
-#### Notifications
-
-The notification bell reflects real activity from the team feed (task creation, status changes, completions, comments), not a static mock list. Unread state is derived from a locally stored "last seen" timestamp — opening the dropdown marks the current time as seen for next time, without changing what's marked unread in the view you're currently looking at.
-
-### Settings
-
-#### Profile
-
-Update name and role, backed by real data — changes persist across sessions.
-
-#### Security
-
-Change your password (requires your current password), governed by the same complexity policy and inline strength checklist as registration.
-
-#### Appearance
-
-Light, dark, or system theme, persisted across the application with no flash of unstyled content on load.
-
-#### Notifications
-
-Toggle which application events generate notifications (task assigned, task overdue, comments, weekly summary).
-
-#### Developer Controls
-
-Demo/testing controls to:
-
-- Force simulated API errors
-- Override network delay
-
-These now apply to **real API calls**, not a mock layer — useful for demonstrating loading, error, and retry states against the actual backend.
-
-### UX & Polish
-
-- Responsive layouts for mobile, tablet, and desktop
-- Keyboard-accessible interactions and focus-visible states
-- Loading skeletons, empty states, and error banners with retry actions
-- Optimistic UI updates with automatic rollback
-- Debounced search and URL-persisted filters
-- Light/dark theme support with no flash of unstyled content
-- Dedicated landing page before entering the dashboard
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Framework | Next.js App Router |
-| Language | TypeScript |
-| Styling | Tailwind CSS v4 |
-| Design System | Tailwind `@theme` design tokens |
-| Icons | lucide-react |
-| Theming | next-themes |
-| Drag & Drop | `@dnd-kit/core` |
-| Charts | Recharts |
-| Backend | Express REST API (see [`server/`](./server)) |
-| Database | PostgreSQL via Prisma |
-| Auth | JWT (httpOnly cookie) + Google OAuth |
-| AI | Gemini |
-| Shared Types | TypeScript types shared between frontend and backend via `@shared/*` |
-
----
-
-## Architecture
-
-LoopBoard is full-stack by default — every screen reads and writes through the Express API in [`server/`](./server), which persists to a real Postgres database via Prisma. There is no mock-data fallback: the frontend always needs `NEXT_PUBLIC_API_URL` pointed at a running backend to function.
-
-For backend setup, environment variables, and the full API reference, see [`server/README.md`](./server/README.md).
+* Productivity and project-related analytics
+* Dashboard statistics and activity information
 
 ---
 
@@ -174,140 +114,396 @@ For backend setup, environment variables, and the full API reference, see [`serv
 
 ### Prerequisites
 
-- Node.js
-- npm
-- A running instance of the backend (see [`server/README.md`](./server/README.md)) — the frontend has nothing to render without it
+Make sure you have:
 
-### Installation
+* Node.js
+* npm
+* PostgreSQL
+
+### 1. Clone the repository
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/sindhu-dev02/LoopBoard.git
 cd LoopBoard
+```
+
+### 2. Install frontend dependencies
+
+```bash
 npm install
 ```
 
-### Configure the API URL
+### 3. Configure frontend environment variables
 
-Create `.env.local` at the project root:
+Create:
 
+```text
+.env.local
 ```
+
+in the project root.
+
+Example:
+
+```env
 NEXT_PUBLIC_API_URL=http://localhost:4000
 ```
 
-Point this at your deployed backend URL in production.
+Use the appropriate backend URL for your environment.
 
-### Start the Development Server
+### 4. Install backend dependencies
+
+```bash
+cd server
+npm install
+```
+
+### 5. Configure backend environment variables
+
+Create:
+
+```text
+server/.env
+```
+
+Configure the required PostgreSQL, authentication, email, OAuth, and AI variables.
+
+See [`server/.env.example`](./server/.env.example) for the complete template.
+
+### 6. Generate Prisma Client
+
+From the `server` directory:
+
+```bash
+npx prisma generate
+```
+
+### 7. Apply database migrations
+
+For development:
+
+```bash
+npm run prisma:migrate
+```
+
+For production/CI:
+
+```bash
+npm run prisma:deploy
+```
+
+### 8. Seed the database
+
+If sample data is required:
+
+```bash
+npm run prisma:seed
+```
+
+### 9. Start the backend
+
+From:
+
+```text
+LoopBoard/server
+```
+
+run:
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). You'll first see the **Get Started** landing page — continue through it, then register or log in to enter the dashboard.
+The backend runs on:
 
-### Available Scripts
+```text
+http://localhost:4000
+```
+
+by default.
+
+### 10. Start the frontend
+
+Open another terminal:
 
 ```bash
-npm run dev          # start the development server
-npm run build         # create a production build
-npm run lint           # run ESLint
-npx tsc --noEmit        # type-check without emitting files
+cd LoopBoard
+npm run dev
 ```
+
+The frontend will normally be available at:
+
+```text
+http://localhost:3000
+```
+
+---
+
+## Scripts
+
+### Frontend
+
+```bash
+npm run dev       # start Next.js development server
+npm run build     # create production build
+npm run start     # start production server
+npx tsc --noEmit  # TypeScript check
+npx eslint        # run ESLint
+```
+
+### Backend
+
+From the `server` directory:
+
+```bash
+npm run dev                 # start backend with hot reload
+npm run build               # Prisma generate + TypeScript compilation
+npm start                   # run compiled backend
+npm run prisma:migrate      # create/apply migration in development
+npm run prisma:deploy       # apply existing migrations
+npm run prisma:seed         # populate sample data
+npm run prisma:studio       # open Prisma Studio
+```
+
+---
+
+## Environment Variables
+
+### Frontend
+
+| Variable              | Description     |
+| --------------------- | --------------- |
+| `NEXT_PUBLIC_API_URL` | Backend API URL |
+
+### Backend
+
+| Variable               | Description                            |
+| ---------------------- | -------------------------------------- |
+| `PORT`                 | Backend server port                    |
+| `DATABASE_URL`         | PostgreSQL connection string           |
+| `JWT_SECRET`           | Secret used to sign JWT session tokens |
+| `CLIENT_ORIGIN`        | Frontend origin used for CORS          |
+| `GEMINI_API_KEY`       | Enables AI features                    |
+| `RESEND_API_KEY`       | Enables password-reset emails          |
+| `EMAIL_FROM`           | Sender address for outgoing emails     |
+| `GOOGLE_CLIENT_ID`     | Google OAuth client ID                 |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret             |
+| `GOOGLE_REDIRECT_URI`  | Google OAuth callback URL              |
+
+Never commit `.env` or `.env.local` files.
 
 ---
 
 ## Project Structure
 
-```
+```text
 LoopBoard/
 │
 ├── src/
 │   ├── app/
-│   │   ├── page.tsx                    # landing page
-│   │   ├── login/page.tsx
-│   │   ├── register/page.tsx
-│   │   ├── forgot-password/page.tsx
-│   │   ├── reset-password/page.tsx
-│   │   ├── dashboard/page.tsx
+│   │   ├── analytics/
+│   │   ├── dashboard/
+│   │   ├── forgot-password/
+│   │   ├── login/
 │   │   ├── projects/
-│   │   │   ├── page.tsx
-│   │   │   └── [id]/page.tsx
-│   │   ├── tasks/page.tsx
-│   │   ├── team/page.tsx
-│   │   ├── analytics/page.tsx
-│   │   ├── settings/page.tsx
-│   │   ├── layout.tsx
-│   │   └── globals.css
+│   │   │   └── [id]/
+│   │   ├── register/
+│   │   ├── reset-password/
+│   │   ├── settings/
+│   │   ├── tasks/
+│   │   └── team/
 │   │
 │   ├── components/
-│   │   ├── layout/
-│   │   │   ├── Navbar, Sidebar, AppShell
-│   │   │   ├── ProfileMenu
-│   │   │   ├── ThemeProvider, ThemeToggle
-│   │   │   ├── NotificationsDropdown        # live Activity data
-│   │   │   └── CommandPalette                # live search data
-│   │   │
-│   │   ├── ui/
-│   │   │   ├── Card, Badge, ProgressBar
-│   │   │   ├── Avatar, AvatarStack
-│   │   │   ├── Skeleton, EmptyState, ConfirmDialog
-│   │   │   └── PasswordStrengthHints
-│   │   │
 │   │   └── dashboard/
-│   │       ├── StatsRow, ProjectCard, TaskCard
-│   │       ├── KanbanBoard, ActivityFeed
-│   │       ├── AnalyticsCharts
-│   │       ├── TaskFormModal                  # includes TaskComments when editing
-│   │       ├── TaskComments
-│   │       ├── ProjectFormModal
-│   │       ├── AITaskSuggestionsModal
-│   │       └── SearchFilterBar
 │   │
 │   ├── lib/
-│   │   ├── api.ts                       # fetch wrapper (credentials, error handling)
-│   │   ├── api/
-│   │   │   ├── auth.ts, users.ts, tasks.ts, projects.ts, team.ts
-│   │   │   ├── comments.ts, notifications.ts, ai.ts, dashboard.ts
-│   │   ├── auth/AuthContext.tsx           # session state, login/register/logout
-│   │   ├── passwordRules.ts                # shared client-side password policy
-│   │   ├── devConfig.ts                     # Developer Controls (delay/error injection)
-│   │   ├── utils.ts
-│   │   └── hooks/useDebounce.ts
+│   │   └── api/
 │   │
-│   └── types/index.ts                       # re-exports from shared/types.ts
+│   └── types/
 │
 ├── shared/
 │   └── types.ts
 │
 ├── server/
-│   └── README.md
+│   ├── prisma/
+│   │   ├── schema.prisma
+│   │   ├── migrations/
+│   │   └── seed.js
+│   │
+│   └── src/
 │
 ├── public/
-│   └── images/
-│
-└── package.json
+├── package.json
+└── README.md
 ```
 
 ---
 
-## Design Notes
+## Data Ownership
 
-### Tailwind CSS v4
+LoopBoard uses authenticated-user ownership and authorization boundaries.
 
-LoopBoard uses Tailwind CSS v4 with semantic design tokens defined through `@theme` in `globals.css` — `surface`, `surface-raised`, `surface-border`, `ink`, `ink-muted`, `accent`, `status-*` — so the interface adapts consistently between light and dark themes.
+A newly registered user should see their own application state rather than another user's existing projects, tasks, or activity.
 
-### Optimistic Updates
+Project operations are scoped to the appropriate authenticated user.
 
-Interactions such as Kanban drag-and-drop and bulk task updates apply immediately in the UI while the request is in flight, and roll back automatically if the request fails.
+Team membership also distinguishes between:
 
-### Password Policy
+* The overall team roster
+* Membership within an individual project
 
-The same rules live in one place on each side — `src/lib/passwordRules.ts` on the frontend, `server/src/schemas/auth.ts` on the backend — so client-side validation and server-side rejection always agree. If you change the policy, update both.
+Removing a team member from a project therefore does not delete that person's account from the overall team roster.
 
 ---
 
-## Backend
+## Team Member Management
 
-The companion Express + PostgreSQL API lives in [`server/`](./server). See the [Backend README](./server/README.md) for installation, environment variables, the data model, authentication details, and the full API reference.
+Team members can be managed from the application.
+
+### Edit
+
+Editing a team member updates their account-level information and therefore affects the member wherever that information is displayed.
+
+### Remove From Project
+
+Removing a member from a project only changes that project's membership.
+
+The member can remain:
+
+* On the overall team roster
+* Assigned to other projects
+* Available for future project assignments
+
+### Delete
+
+Deleting a team member is an account-level destructive action and is separate from simply removing the member from a project.
+
+---
+
+## Project Deletion
+
+Deleting a project requires confirmation.
+
+The project's associated tasks are removed through the configured database cascade behavior.
+
+---
+
+## Task Comments
+
+Tasks support comments through the backend comments API.
+
+Comments contain author information and are associated with their corresponding task.
+
+Comment deletion is restricted to the comment author.
+
+---
+
+## API Documentation
+
+The backend contains the complete REST API documentation in:
+
+```text
+server/API_DOCUMENTATION.md
+```
+
+The API includes endpoints for:
+
+* Authentication
+* Users
+* Projects
+* Tasks
+* Team members
+* Task comments
+* Activity
+* Dashboard statistics
+* AI features
+* Notification preferences
+
+---
+
+## Application Routes
+
+| Route              | Purpose              |
+| ------------------ | -------------------- |
+| `/`                | Root page            |
+| `/login`           | User login           |
+| `/register`        | Account registration |
+| `/forgot-password` | Password recovery    |
+| `/reset-password`  | Password reset       |
+| `/dashboard`       | Main dashboard       |
+| `/projects`        | Project management   |
+| `/projects/[id]`   | Project details      |
+| `/tasks`           | Task management      |
+| `/team`            | Team management      |
+| `/analytics`       | Analytics            |
+| `/settings`        | Application settings |
+
+---
+
+## Deployment
+
+LoopBoard uses a separate frontend/backend deployment architecture.
+
+### Frontend
+
+The Next.js application can be deployed to Vercel.
+
+The frontend communicates with the deployed backend using the configured API URL.
+
+### Backend
+
+The Express backend can be deployed as a long-running Node.js service such as Render.
+
+### Database
+
+The application uses PostgreSQL through Prisma.
+
+A managed PostgreSQL provider such as Neon can be used for production.
+
+### Production Requirements
+
+Make sure:
+
+* `CLIENT_ORIGIN` exactly matches the deployed frontend origin
+* `NODE_ENV=production` is configured
+* JWT and database secrets are configured in the deployment platform
+* Google OAuth redirect URLs match the production callback URL
+* Pending Prisma migrations are applied during deployment
+
+Apply existing migrations with:
+
+```bash
+npx prisma migrate deploy
+```
+
+---
+
+## Verification
+
+Before pushing changes, verify both applications.
+
+### Frontend
+
+From the project root:
+
+```bash
+npx tsc --noEmit
+npx eslint
+npm run build
+```
+
+The current frontend production build successfully completes TypeScript checking, page generation, and optimization.
+
+### Backend
+
+From `server`:
+
+```bash
+npx tsc --noEmit
+npm run build
+```
+
+The current backend TypeScript check and production build complete successfully.
 
 ---
 
